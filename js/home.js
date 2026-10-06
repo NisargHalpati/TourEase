@@ -57,7 +57,7 @@ if (destinationGrid) {
     link.className = featured
       ? "top-destinations__card top-destinations__card--featured"
       : "top-destinations__card";
-    link.href = "destinations.html";
+    link.href = `destinations.html?destination=${encodeURIComponent(name)}`;
     link.setAttribute("aria-label", `${name}, ${region}`);
 
     const photo = document.createElement("img");

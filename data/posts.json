@@ -1,1 +1,87 @@
-[]
+﻿[
+  {
+    "id": 1,
+    "author": "Aarav",
+    "location": "Meghalaya",
+    "caption": "Spent the morning walking through mist-covered hills. Meghalaya feels unreal after the rain.",
+    "image": "https://images.unsplash.com/photo-1516483638261-f4dbaf036963?auto=format&fit=crop&w=1200&q=80",
+    "date": "2026-10-01T08:00:00.000Z",
+    "likes": 42,
+    "comments": [
+      { "id": 101, "postId": 1, "author": "Nisha", "text": "This is exactly the mood I wanted for my trip.", "date": "2026-10-01T12:30:00.000Z" },
+      { "id": 102, "postId": 1, "author": "Kabir", "text": "The cloud cover makes it look magical.", "date": "2026-10-01T15:45:00.000Z" }
+    ]
+  },
+  {
+    "id": 2,
+    "author": "Riya",
+    "location": "Kerala",
+    "caption": "Some journeys are better when you slow down. Kerala was exactly that.",
+    "image": "https://images.unsplash.com/photo-1602013699514-699c7d3d7f83?auto=format&fit=crop&w=1200&q=80",
+    "date": "2026-10-02T08:15:00.000Z",
+    "likes": 34,
+    "comments": [
+      { "id": 201, "postId": 2, "author": "Ananya", "text": "The backwaters are so peaceful.", "date": "2026-10-02T10:25:00.000Z" }
+    ]
+  },
+  {
+    "id": 3,
+    "author": "Dev",
+    "location": "Ladakh",
+    "caption": "The road keeps getting higher, and somehow the views keep getting better.",
+    "image": "https://images.unsplash.com/photo-1521295121783-8a321d551ad2?auto=format&fit=crop&w=1200&q=80",
+    "date": "2026-10-03T07:30:00.000Z",
+    "likes": 58,
+    "comments": [
+      { "id": 301, "postId": 3, "author": "Mehul", "text": "This is the kind of road trip I want to do next.", "date": "2026-10-03T09:10:00.000Z" }
+    ]
+  },
+  {
+    "id": 4,
+    "author": "Sana",
+    "location": "Rajasthan",
+    "caption": "Fort walls, desert light, and warm evenings that just linger in your memory.",
+    "image": "https://images.unsplash.com/photo-1477587458883-47145ed94245?auto=format&fit=crop&w=1200&q=80",
+    "date": "2026-10-04T10:00:00.000Z",
+    "likes": 63,
+    "comments": [
+      { "id": 401, "postId": 4, "author": "Yash", "text": "The colors in this shot are incredible.", "date": "2026-10-04T14:05:00.000Z" }
+    ]
+  },
+  {
+    "id": 5,
+    "author": "Ishaan",
+    "location": "Kashmir",
+    "caption": "It felt like the valley was glowing from the inside. Worth every climb.",
+    "image": "https://images.unsplash.com/photo-1505761671935-60e5b5f4cc6b?auto=format&fit=crop&w=1200&q=80",
+    "date": "2026-10-05T06:00:00.000Z",
+    "likes": 49,
+    "comments": [
+      { "id": 501, "postId": 5, "author": "Mira", "text": "Kashmir never disappoints.", "date": "2026-10-05T08:20:00.000Z" }
+    ]
+  },
+  {
+    "id": 6,
+    "author": "Neha",
+    "location": "Goa",
+    "caption": "Golden beaches, endless sunsets, and the kind of slow mornings you want to keep forever.",
+    "image": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
+    "date": "2026-10-05T12:30:00.000Z",
+    "likes": 77,
+    "comments": [
+      { "id": 601, "postId": 6, "author": "Pranav", "text": "Beach days really do reset the soul.", "date": "2026-10-05T14:15:00.000Z" }
+    ]
+  },
+  {
+    "id": 7,
+    "author": "Harsh",
+    "location": "Himachal",
+    "caption": "A little road trip, a little cold air, and a lot of pin-drop silence.",
+    "image": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80",
+    "date": "2026-10-06T09:00:00.000Z",
+    "likes": 41,
+    "comments": [
+      { "id": 701, "postId": 7, "author": "Tanya", "text": "This looks like the perfect weekend escape.", "date": "2026-10-06T11:40:00.000Z" }
+    ]
+  }
+]

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TourEase | Destination</title>
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/navbar.css">
+  <link rel="stylesheet" href="css/destinations.css">
+  <link rel="stylesheet" href="css/footer.css">
+  <script src="js/main.js" defer></script>
+  <script src="js/destination-detail.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <nav class="navbar container" aria-label="Main navigation">
+      <a class="navbar-brand" href="index.html">TourEase</a>
+      <button
+        class="navbar-menu-toggle"
+        type="button"
+        aria-label="Open navigation menu"
+        aria-expanded="false"
+        aria-controls="navbar-links"
+      >
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <div class="navbar-links" id="navbar-links">
+        <a href="index.html">Home</a>
+        <a href="destinations.html" aria-current="page">Destinations</a>
+        <a href="inspiration.html">Inspirations</a>
+        <a href="index.html#about">About</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="destination-detail-page container">
+    <a class="destination-detail-back" href="destinations.html">
+      <span aria-hidden="true">←</span>
+      All destinations
+    </a>
+    <div id="destination-detail" class="destination-detail" hidden>
+      <div class="destination-detail__image-wrap">
+        <img id="destination-detail-image" class="destination-detail__image" alt="" hidden>
+        <span id="destination-detail-image-fallback" class="destination-card__image-fallback" hidden>
+          Image unavailable
+        </span>
+      </div>
+      <article class="destination-detail__content">
+        <p id="destination-detail-category" class="destinations-eyebrow"></p>
+        <h1 id="destination-detail-name"></h1>
+        <p id="destination-detail-location" class="destination-detail__location"></p>
+        <p id="destination-detail-description" class="destination-detail__description"></p>
+        <div id="destination-detail-facts" class="destination-detail__facts"></div>
+      </article>
+    </div>
+    <p id="destination-detail-error" class="destination-detail-error" role="alert" hidden></p>
+  </main>
+
+  <footer class="site-footer" id="about">
+    <div class="site-footer__inner">
+      <div class="site-footer__main">
+        <div class="site-footer__brand">
+          <a class="site-footer__wordmark" href="index.html">TourEase</a>
+          <p class="site-footer__tagline">Discover places worth getting lost in.</p>
+        </div>
+        <nav class="site-footer__group" aria-label="Explore">
+          <h2 class="site-footer__heading">Explore</h2>
+          <a href="destinations.html">Destinations</a>
+          <a href="inspiration.html">Inspirations</a>
+          <a href="index.html#latest-stories-title">Stories</a>
+        </nav>
+        <nav class="site-footer__group" aria-label="Company">
+          <h2 class="site-footer__heading">Company</h2>
+          <a href="index.html#about">About</a>
+          <a href="#footer-contact">Contact</a>
+          <span>Privacy</span>
+        </nav>
+        <div class="site-footer__group">
+          <h2 class="site-footer__heading">Connect</h2>
+          <span>Instagram</span>
+          <span>GitHub</span>
+          <span>Email</span>
+        </div>
+        <aside class="site-footer__contact" id="footer-contact" aria-labelledby="footer-contact-title">
+          <p>Have a place worth sharing?</p>
+          <h2 id="footer-contact-title">Get in touch.</h2>
+        </aside>
+      </div>
+      <div class="site-footer__bottom">
+        <p>© 2026 TourEase. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

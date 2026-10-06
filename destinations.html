@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="css/global.css">
   <link rel="stylesheet" href="css/navbar.css">
   <link rel="stylesheet" href="css/destinations.css">
+  <link rel="stylesheet" href="css/footer.css">
   <script src="js/main.js" defer></script>
   <script src="js/destinations.js" defer></script>
 </head>
@@ -29,9 +30,130 @@
         <a href="index.html">Home</a>
         <a href="destinations.html" aria-current="page">Destinations</a>
         <a href="inspiration.html">Inspirations</a>
-        <a href="login.html">Login</a>
+        <a href="index.html#about">About</a>
       </div>
     </nav>
   </header>
+  <main>
+    <section class="destinations-intro" aria-labelledby="destinations-title">
+      <div class="container destinations-intro__inner">
+        <p class="destinations-eyebrow">Discover India</p>
+        <h1 id="destinations-title">Places worth the journey.</h1>
+        <p class="destinations-intro__description">
+          Find a place to wander, with thoughtful details to help plan your trip.
+        </p>
+        <div id="destination-selection-context" class="destination-selection-context" role="status" hidden>
+          <p id="destination-selection-label"></p>
+          <button id="destination-clear-selection" class="destination-clear-selection" type="button">
+            Clear selection
+          </button>
+        </div>
+        <label class="destination-search">
+          <span class="visually-hidden">Search destinations</span>
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <circle cx="10.8" cy="10.8" r="6.8"></circle>
+            <path d="m16 16 5 5"></path>
+          </svg>
+          <input id="destination-search" type="search" placeholder="Search places, states, interests..." autocomplete="off">
+        </label>
+      </div>
+    </section>
+
+    <section class="destination-discovery container" aria-label="Browse destinations">
+      <button
+        id="destination-filter-toggle"
+        class="destination-filter-toggle"
+        type="button"
+        aria-expanded="false"
+        aria-controls="destination-filters"
+        hidden
+      >
+        Filters
+        <span id="destination-filter-count" class="destination-filter-count" hidden></span>
+      </button>
+
+      <aside id="destination-filters" class="destination-filters" aria-label="Destination filters">
+        <div class="destination-filters__header">
+          <h2>Refine your search</h2>
+          <button id="clear-destination-filters" class="destination-clear" type="button" disabled>
+            Clear all
+          </button>
+        </div>
+        <div id="destination-primary-filters" class="destination-filter-fields"></div>
+        <button
+          id="destination-more-toggle"
+          class="destination-more-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="destination-more-filters"
+        >
+          <span aria-hidden="true">+</span>
+          More Filters
+        </button>
+        <div id="destination-more-filters" class="destination-more-filters">
+          <div id="destination-additional-filters" class="destination-filter-fields"></div>
+        </div>
+      </aside>
+
+      <div class="destination-results">
+        <div class="destination-results__header">
+          <p id="destination-result-count" class="destination-result-count" aria-live="polite">Loading destinations...</p>
+          <div id="destination-active-filters" class="destination-active-filters" aria-label="Active filters"></div>
+        </div>
+        <div id="destination-grid" class="destination-grid" aria-live="polite" aria-busy="true"></div>
+        <p id="destination-empty-state" class="destination-empty-state" hidden>
+          <strong>No destinations found.</strong>
+          <span>Try changing your search or filters.</span>
+        </p>
+        <p id="destination-error" class="destination-error" role="alert" hidden></p>
+        <nav id="destination-pagination" class="destination-pagination" aria-label="Destination results pages" hidden>
+          <button id="destination-previous-page" class="destination-page-button destination-page-button--direction" type="button">
+            <span aria-hidden="true">←</span>
+            Previous
+          </button>
+          <div id="destination-page-numbers" class="destination-page-numbers"></div>
+          <button id="destination-next-page" class="destination-page-button destination-page-button--direction" type="button">
+            Next
+            <span aria-hidden="true">→</span>
+          </button>
+        </nav>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer" id="about">
+    <div class="site-footer__inner">
+        <div class="site-footer__main">
+          <div class="site-footer__brand">
+            <a class="site-footer__wordmark" href="index.html">TourEase</a>
+            <p class="site-footer__tagline">Discover places worth getting lost in.</p>
+          </div>
+          <nav class="site-footer__group" aria-label="Explore">
+            <h2 class="site-footer__heading">Explore</h2>
+            <a href="destinations.html">Destinations</a>
+            <a href="inspiration.html">Inspirations</a>
+            <a href="index.html#latest-stories-title">Stories</a>
+          </nav>
+          <nav class="site-footer__group" aria-label="Company">
+            <h2 class="site-footer__heading">Company</h2>
+            <a href="index.html#about">About</a>
+            <a href="#footer-contact">Contact</a>
+            <span>Privacy</span>
+          </nav>
+          <div class="site-footer__group">
+            <h2 class="site-footer__heading">Connect</h2>
+            <span>Instagram</span>
+            <span>GitHub</span>
+            <span>Email</span>
+          </div>
+          <aside class="site-footer__contact" id="footer-contact" aria-labelledby="footer-contact-title">
+            <p>Have a place worth sharing?</p>
+            <h2 id="footer-contact-title">Get in touch.</h2>
+          </aside>
+        </div>
+        <div class="site-footer__bottom">
+          <p>© 2026 TourEase. All rights reserved.</p>
+        </div>
+    </div>
+  </footer>
 </body>
 </html>

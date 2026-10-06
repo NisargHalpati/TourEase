@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TourEase | Inspiration</title>
+  <title>TourEase | Inspirations</title>
   <link rel="stylesheet" href="css/global.css">
   <link rel="stylesheet" href="css/navbar.css">
   <link rel="stylesheet" href="css/inspiration.css">
+  <link rel="stylesheet" href="css/footer.css">
   <script src="js/main.js" defer></script>
   <script src="js/inspiration.js" defer></script>
 </head>
@@ -14,13 +15,7 @@
   <header class="site-header">
     <nav class="navbar container" aria-label="Main navigation">
       <a class="navbar-brand" href="index.html">TourEase</a>
-      <button
-        class="navbar-menu-toggle"
-        type="button"
-        aria-label="Open navigation menu"
-        aria-expanded="false"
-        aria-controls="navbar-links"
-      >
+      <button class="navbar-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navbar-links">
         <span></span>
         <span></span>
         <span></span>
@@ -29,9 +24,137 @@
         <a href="index.html">Home</a>
         <a href="destinations.html">Destinations</a>
         <a href="inspiration.html" aria-current="page">Inspirations</a>
-        <a href="login.html">Login</a>
+        <a href="index.html#about">About</a>
       </div>
     </nav>
   </header>
+
+  <main class="inspiration-shell">
+    <section class="inspiration-feed" aria-labelledby="inspiration-feed-title">
+      <div class="container inspiration-feed__inner">
+        <aside class="inspiration-sidebar inspiration-sidebar--left" aria-label="Account actions">
+          <div class="sidebar-account-section" id="inspiration-notifications">
+            <button
+              id="notification-bell"
+              class="notification-bell"
+              type="button"
+              aria-label="Notifications"
+              aria-expanded="false"
+              aria-controls="notification-panel"
+              hidden
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path>
+                <path d="M10 21h4"></path>
+              </svg>
+              <span id="notification-bell-count" class="notification-count" hidden></span>
+            </button>
+            <section id="notification-panel" class="notification-panel" aria-label="Notifications" hidden>
+              <div class="notification-panel__header">
+                <h2>Notifications</h2>
+                <button id="mark-notifications-read" class="notification-mark-read" type="button" disabled>
+                  Mark all as read
+                </button>
+              </div>
+              <div id="notification-list" class="notification-list" aria-live="polite"></div>
+            </section>
+            <div class="sidebar-account-content">
+              <div id="login-required-message" class="login-required-message" hidden>
+                <a class="account-action account-action--primary" href="login.html">Log In</a>
+              </div>
+              <div id="inspiration-member-actions" class="inspiration-member-actions" hidden>
+                <img id="account-avatar-image" class="account-avatar" alt="" hidden>
+                <div id="account-avatar-fallback" class="account-avatar account-avatar--fallback" aria-hidden="true"></div>
+                <p id="account-user-name" class="account-user-name"></p>
+                <a class="account-action" href="login.html">Profile</a>
+                <button id="create-post-button" class="account-action account-action--primary" type="button">Create Post</button>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <div id="inspiration-feed" class="post-feed" aria-live="polite" aria-atomic="true"></div>
+
+        <aside class="inspiration-sidebar inspiration-sidebar--right" aria-label="Inspirations context">
+          <div class="inspiration-sidebar__content">
+            <p class="inspiration-eyebrow">INSPIRATIONS</p>
+            <h1 id="inspiration-feed-title" class="inspiration-title">Travel through their eyes.</h1>
+            <p class="inspiration-subtitle">Discover journeys, places, and experiences shared by the TourEase community.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <div id="create-post-modal" class="modal" aria-hidden="true">
+    <div class="modal__backdrop" data-close-modal="true"></div>
+    <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="create-post-title">
+      <div class="modal__header">
+        <div>
+          <p class="inspiration-eyebrow">Share a moment</p>
+          <h2 id="create-post-title">Create Post</h2>
+        </div>
+        <button id="close-post-modal" class="modal__close" type="button" aria-label="Close create post dialog">×</button>
+      </div>
+
+      <form id="create-post-form" class="create-post-form" novalidate>
+        <label class="field">
+          <span>Image URL</span>
+          <input id="post-image" name="image" type="url" placeholder="https://example.com/photo.jpg" required>
+        </label>
+
+        <label class="field">
+          <span>Caption</span>
+          <textarea id="post-caption" name="caption" rows="4" placeholder="Write something about this journey..." required></textarea>
+        </label>
+
+        <label class="field">
+          <span>Location</span>
+          <input id="post-location" name="location" type="text" placeholder="Where was this?" maxlength="80">
+        </label>
+
+        <div class="form-actions">
+          <button id="cancel-post-form" type="button" class="btn btn-secondary">Cancel</button>
+          <button type="submit" class="btn btn-primary">Share Post</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+        <div class="site-footer__main">
+          <div class="site-footer__brand">
+            <a class="site-footer__wordmark" href="index.html">TourEase</a>
+            <p class="site-footer__tagline">Discover places worth getting lost in.</p>
+          </div>
+          <nav class="site-footer__group" aria-label="Explore">
+            <h2 class="site-footer__heading">Explore</h2>
+            <a href="destinations.html">Destinations</a>
+            <a href="inspiration.html">Inspirations</a>
+            <a href="index.html#latest-stories-title">Stories</a>
+          </nav>
+          <nav class="site-footer__group" aria-label="Company">
+            <h2 class="site-footer__heading">Company</h2>
+            <a href="index.html#about">About</a>
+            <a href="#footer-contact">Contact</a>
+            <span>Privacy</span>
+          </nav>
+          <div class="site-footer__group">
+            <h2 class="site-footer__heading">Connect</h2>
+            <span>Instagram</span>
+            <span>GitHub</span>
+            <span>Email</span>
+          </div>
+          <aside class="site-footer__contact" id="footer-contact" aria-labelledby="footer-contact-title">
+            <p>Have a place worth sharing?</p>
+            <h2 id="footer-contact-title">Get in touch.</h2>
+          </aside>
+        </div>
+        <div class="site-footer__bottom">
+          <p>© 2026 TourEase. All rights reserved.</p>
+        </div>
+    </div>
+  </footer>
 </body>
 </html>

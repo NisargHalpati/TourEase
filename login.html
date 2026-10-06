@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="css/global.css">
   <link rel="stylesheet" href="css/navbar.css">
   <link rel="stylesheet" href="css/login.css">
+  <link rel="stylesheet" href="css/footer.css">
   <script src="js/main.js" defer></script>
   <script src="js/login.js" defer></script>
 </head>
@@ -14,13 +15,7 @@
   <header class="site-header">
     <nav class="navbar container" aria-label="Main navigation">
       <a class="navbar-brand" href="index.html">TourEase</a>
-      <button
-        class="navbar-menu-toggle"
-        type="button"
-        aria-label="Open navigation menu"
-        aria-expanded="false"
-        aria-controls="navbar-links"
-      >
+      <button class="navbar-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navbar-links">
         <span></span>
         <span></span>
         <span></span>
@@ -29,9 +24,98 @@
         <a href="index.html">Home</a>
         <a href="destinations.html">Destinations</a>
         <a href="inspiration.html">Inspirations</a>
-        <a href="login.html" aria-current="page">Login</a>
+        <a href="index.html#about">About</a>
       </div>
     </nav>
   </header>
+
+  <main class="login-page">
+    <div class="container login-shell">
+      <a class="login-back-link" href="inspiration.html?restore=1">
+        <span class="login-back-link__chevron" aria-hidden="true"></span>
+        Back to Inspirations
+      </a>
+      <section class="login-card" aria-live="polite">
+        <div id="login-panel" class="login-panel">
+          <p class="login-eyebrow">Welcome</p>
+          <h1>Continue your journey.</h1>
+          <p class="login-description">Save your profile and keep your travel stories close.</p>
+
+          <form id="login-form" class="login-form">
+            <label>
+              <span>Name</span>
+              <input id="user-name" name="name" type="text" placeholder="Your name" required>
+            </label>
+            <label>
+              <span>Email</span>
+              <input id="user-email" name="email" type="email" placeholder="you@example.com" required>
+            </label>
+            <label>
+              <span>Bio</span>
+              <textarea id="user-bio" name="bio" rows="4" placeholder="Exploring India one road at a time." required></textarea>
+            </label>
+            <button type="submit" class="btn btn-primary">Log In</button>
+          </form>
+        </div>
+
+        <div id="profile-panel" class="profile-panel" hidden>
+          <div class="profile-header">
+            <div id="profile-avatar" class="profile-avatar" aria-label="Profile avatar">N</div>
+            <div>
+              <p class="login-eyebrow">Profile</p>
+              <h2 id="profile-name">Name</h2>
+            </div>
+          </div>
+
+          <p id="profile-bio" class="profile-bio"></p>
+          <p id="profile-email" class="profile-email"></p>
+
+          <div class="profile-posts">
+            <div class="profile-posts__title-row">
+              <h3>Posts</h3>
+              <button id="logout-button" type="button" class="btn btn-secondary">Log Out</button>
+            </div>
+            <div id="profile-posts-grid" class="profile-posts__grid"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+        <div class="site-footer__main">
+          <div class="site-footer__brand">
+            <a class="site-footer__wordmark" href="index.html">TourEase</a>
+            <p class="site-footer__tagline">Discover places worth getting lost in.</p>
+          </div>
+          <nav class="site-footer__group" aria-label="Explore">
+            <h2 class="site-footer__heading">Explore</h2>
+            <a href="destinations.html">Destinations</a>
+            <a href="inspiration.html">Inspirations</a>
+            <a href="index.html#latest-stories-title">Stories</a>
+          </nav>
+          <nav class="site-footer__group" aria-label="Company">
+            <h2 class="site-footer__heading">Company</h2>
+            <a href="index.html#about">About</a>
+            <a href="#footer-contact">Contact</a>
+            <span>Privacy</span>
+          </nav>
+          <div class="site-footer__group">
+            <h2 class="site-footer__heading">Connect</h2>
+            <span>Instagram</span>
+            <span>GitHub</span>
+            <span>Email</span>
+          </div>
+          <aside class="site-footer__contact" id="footer-contact" aria-labelledby="footer-contact-title">
+            <p>Have a place worth sharing?</p>
+            <h2 id="footer-contact-title">Get in touch.</h2>
+          </aside>
+        </div>
+        <div class="site-footer__bottom">
+          <p>© 2026 TourEase. All rights reserved.</p>
+        </div>
+    </div>
+  </footer>
 </body>
 </html>
