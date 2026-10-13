@@ -37,6 +37,30 @@
   box-shadow: var(--shadow-sm);
 }
 
+.auth-status {
+  margin: var(--space-5);
+  color: var(--color-text-secondary);
+}
+
+.auth-status:empty {
+  display: none;
+}
+
+.auth-status.is-error {
+  color: #9b514a;
+}
+
+.auth-mode-toggle {
+  margin-top: var(--space-4);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
 .login-panel,
 .profile-panel {
   padding: clamp(var(--space-6), 4vw, var(--space-10));
@@ -238,6 +262,16 @@
 
 .empty-profile p {
   margin: 0;
+}
+
+.profile-loading,
+.profile-error {
+  grid-column: 1 / -1;
+  color: var(--color-text-secondary);
+}
+
+.profile-error {
+  color: #9b514a;
 }
 
 @media (max-width: 640px) {

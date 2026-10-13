@@ -95,6 +95,12 @@
   overflow-wrap: anywhere;
 }
 
+.account-error {
+  margin: var(--space-3);
+  color: #9b514a;
+  font-size: var(--text-caption);
+}
+
 .login-required-message[hidden],
 .inspiration-member-actions[hidden],
 .notification-bell[hidden],
@@ -362,6 +368,29 @@
   margin-inline: auto;
 }
 
+.feed-status {
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.feed-status.is-error {
+  color: #9b514a;
+}
+
+.feed-retry {
+  border: 0;
+  background: transparent;
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .post-card {
   overflow: hidden;
   border: 1px solid var(--color-border);
@@ -429,6 +458,19 @@
   height: auto;
   max-height: 700px;
   object-fit: cover;
+}
+
+.post-card__image-credit {
+  padding: 0.45rem var(--space-5);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.post-card__image-credit a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
   display: block;
 }
 
