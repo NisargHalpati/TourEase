@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="css/navbar.css">
   <link rel="stylesheet" href="css/home.css">
   <link rel="stylesheet" href="css/footer.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+  <script src="js/supabase-config.js" defer></script>
   <script src="js/main.js" defer></script>
   <script src="js/home.js" defer></script>
 </head>
@@ -61,7 +63,8 @@
           <p class="latest-stories__eyebrow">Latest stories</p>
           <h2 class="latest-stories__title" id="latest-stories-title">Stories from the road.</h2>
         </header>
-        <div class="latest-stories__layout">
+        <p id="latest-stories-status" class="latest-stories__status" role="status" aria-live="polite" hidden></p>
+        <div class="latest-stories__layout" id="latest-stories-layout">
           <article class="latest-stories__feature">
             <a class="latest-stories__link" href="inspiration.html">
               <div class="latest-stories__image-wrap latest-stories__image-wrap--feature">

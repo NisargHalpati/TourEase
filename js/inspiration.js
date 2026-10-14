@@ -17,6 +17,14 @@ const closePostModalButton = document.getElementById("close-post-modal");
 const cancelPostButton = document.getElementById("cancel-post-form");
 const createPostTitle = document.getElementById("create-post-title");
 const submitPostButton = createPostForm.querySelector('button[type="submit"]');
+const postImageInput = document.getElementById("post-image");
+const postImageFileInput = document.getElementById("post-image-file");
+const postImagePreview = document.getElementById("post-image-preview");
+const postImagePreviewImage = document.getElementById("post-image-preview-image");
+const postFormStatus = document.getElementById("post-form-status");
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"]);
+const IMAGE_BUCKET = "inspiration-images";
 const inspirationParams = new URLSearchParams(window.location.search);
 const restoreRequested = inspirationParams.get("restore") === "1";
 const returnToProfile = inspirationParams.get("returnToProfile") === "1";
@@ -32,6 +40,64 @@ let pageHasShown = false;
 let editingPostId = null;
 let inspirationReturnState = null;
 let feedRequestId = 0;
+let previewObjectUrl = null;
+let handledPostAnchor = false;
+
+function setPostFormStatus(message, isError = false) {
+  postFormStatus.textContent = message;
+  postFormStatus.hidden = !message;
+  postFormStatus.classList.toggle("is-error", isError);
+}
+
+function clearImagePreview() {
+  if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+  previewObjectUrl = null;
+  postImagePreviewImage.removeAttribute("src");
+  postImagePreview.hidden = true;
+}
+
+function showImagePreview(file) {
+  clearImagePreview();
+  if (!file) return;
+  previewObjectUrl = URL.createObjectURL(file);
+  postImagePreviewImage.src = previewObjectUrl;
+  postImagePreview.hidden = false;
+}
+
+async function hasValidImageSignature(file) {
+  const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const starts = (...values) => values.every((value, index) => bytes[index] === value);
+  if (file.type === "image/jpeg") return starts(0xff, 0xd8, 0xff);
+  if (file.type === "image/png") return starts(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
+  if (file.type === "image/webp") return starts(0x52, 0x49, 0x46, 0x46) && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+  if (file.type === "image/gif") return starts(0x47, 0x49, 0x46, 0x38);
+  if (file.type === "image/avif") return bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70
+    && ["avif", "avis"].includes(String.fromCharCode(...bytes.slice(8, 12)));
+  return false;
+}
+
+function getOwnedStoragePath(imageUrl, userId) {
+  const safeUrl = getSafeImageUrl(imageUrl);
+  if (!safeUrl) return null;
+  try {
+    const url = new URL(safeUrl);
+    if (url.origin !== new URL(SUPABASE_URL).origin) return null;
+    const marker = `/storage/v1/object/public/${IMAGE_BUCKET}/`;
+    const index = url.pathname.indexOf(marker);
+    if (index < 0) return null;
+    const path = decodeURIComponent(url.pathname.slice(index + marker.length));
+    return path.startsWith(`${userId}/`) ? path : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function removeOwnedImage(imageUrl, userId) {
+  const path = getOwnedStoragePath(imageUrl, userId);
+  if (!path) return;
+  const { error } = await supabaseClient.storage.from(IMAGE_BUCKET).remove([path]);
+  if (error) throw error;
+}
 
 if (restoreRequested) {
   window.history.scrollRestoration = "manual";
@@ -277,6 +343,7 @@ function renderFeed() {
     const card = document.createElement("article");
     card.className = "post-card";
     card.dataset.postId = post.id;
+    card.id = `post-${post.id}`;
 
     const header = document.createElement("div");
     header.className = "post-card__header";
@@ -407,6 +474,11 @@ function renderFeed() {
   });
   feedRoot.replaceChildren(...cards);
   restoreInspirationState();
+  if (!handledPostAnchor && window.location.hash.startsWith("#post-")) {
+    handledPostAnchor = true;
+    const postId = decodeURIComponent(window.location.hash.slice("#post-".length));
+    window.requestAnimationFrame(() => document.getElementById(`post-${postId}`)?.scrollIntoView());
+  }
 }
 
 function restoreInspirationState() {
@@ -626,21 +698,26 @@ function openModal(post = null) {
   createPostTitle.textContent = post ? "Edit Post" : "Create Post";
   submitPostButton.textContent = post ? "Save Changes" : "Share Post";
   if (post) {
-    document.getElementById("post-image").value = post.image_url || "";
+    postImageInput.value = post.image_url || "";
     document.getElementById("post-caption").value = post.caption || "";
     document.getElementById("post-location").value = post.location || "";
   } else {
     createPostForm.reset();
   }
+  postImageFileInput.value = "";
+  clearImagePreview();
+  setPostFormStatus("");
   modal.classList.add("is-open");
   modal.setAttribute("aria-hidden", "false");
-  document.getElementById("post-image").focus();
+  postImageInput.focus();
 }
 
 function closeModal() {
   modal.classList.remove("is-open");
   modal.setAttribute("aria-hidden", "true");
   createPostForm.reset();
+  clearImagePreview();
+  setPostFormStatus("");
   editingPostId = null;
   createPostTitle.textContent = "Create Post";
   submitPostButton.textContent = "Share Post";
@@ -663,6 +740,7 @@ async function handleCreatePostSubmit(event) {
 
   const formData = new FormData(createPostForm);
   const image = String(formData.get("image") || "").trim();
+  const imageFile = postImageFileInput.files?.[0] || null;
   const caption = String(formData.get("caption") || "").trim();
   const location = String(formData.get("location") || "").trim();
   const imageInput = document.getElementById("post-image");
@@ -671,7 +749,27 @@ async function handleCreatePostSubmit(event) {
       ? "Enter an HTTP or HTTPS image URL."
       : ""
   );
-  if (!createPostForm.reportValidity() || !image || !caption) {
+  if (imageFile && !ALLOWED_IMAGE_TYPES.has(imageFile.type)) {
+    setPostFormStatus("Choose a JPEG, PNG, WebP, GIF, or AVIF image. SVG and other formats are unsupported.", true);
+    return;
+  }
+  if (imageFile && imageFile.size > MAX_IMAGE_SIZE) {
+    setPostFormStatus("This image is over the 5 MB limit. Choose a smaller image.", true);
+    return;
+  }
+  if (imageFile && !await hasValidImageSignature(imageFile)) {
+    setPostFormStatus("The selected file does not match its image type. Choose a valid JPEG, PNG, WebP, GIF, or AVIF image.", true);
+    return;
+  }
+  if (imageFile && image) {
+    setPostFormStatus("Choose an uploaded image or an image URL, not both.", true);
+    return;
+  }
+  postImageInput.required = !imageFile;
+  postImageInput.setCustomValidity(
+    image && !getSafeImageUrl(image) ? "Enter an HTTP or HTTPS image URL." : ""
+  );
+  if (!createPostForm.reportValidity() || (!imageFile && !image) || !caption) {
     return;
   }
   if (!currentProfile) {
@@ -684,12 +782,28 @@ async function handleCreatePostSubmit(event) {
   }
 
   submitPostButton.disabled = true;
+  const originalButtonText = submitPostButton.textContent;
+  let uploadedImageUrl = "";
   try {
+    let imageUrl = image;
+    if (imageFile) {
+      setPostFormStatus("Uploading image...");
+      submitPostButton.textContent = "Uploading image…";
+      const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif", "image/avif": "avif" })[imageFile.type];
+      const storagePath = `${currentUser.id}/${window.crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await supabaseClient.storage.from(IMAGE_BUCKET).upload(storagePath, imageFile, {
+        contentType: imageFile.type,
+        upsert: false,
+      });
+      if (uploadError) throw uploadError;
+      imageUrl = supabaseClient.storage.from(IMAGE_BUCKET).getPublicUrl(storagePath).data.publicUrl;
+      uploadedImageUrl = imageUrl;
+    }
     const postValues = {
       author_name: currentProfile.display_name,
       location: location || "A hidden corner",
       caption,
-      image_url: image,
+      image_url: imageUrl,
       is_starter: false,
     };
     if (editingPostId) {
@@ -722,17 +836,67 @@ async function handleCreatePostSubmit(event) {
 
     closeModal();
     if (returnToProfile) {
+      try { window.sessionStorage.setItem("tourease_profile_notice", "Post published successfully."); }
+      catch (storageError) { console.error("Unable to save the post confirmation message.", storageError); }
       window.location.href = "login.html";
       return;
     }
     await loadFeed();
+    showFeedMessage("Post published successfully.");
   } catch (error) {
     console.error("Unable to save post.", error);
+    if (uploadedImageUrl) {
+      try { await removeOwnedImage(uploadedImageUrl, currentUser.id); }
+      catch (cleanupError) { console.error("Unable to clean up an unlinked uploaded image.", cleanupError); }
+    }
+    setPostFormStatus(`Unable to save your post: ${error.message}`, true);
     showFeedMessage(`Unable to save your post: ${error.message}`, true);
   } finally {
     submitPostButton.disabled = false;
+    submitPostButton.textContent = originalButtonText;
+    postImageInput.required = false;
   }
 }
+
+postImageFileInput.addEventListener("change", async () => {
+  const file = postImageFileInput.files?.[0];
+  setPostFormStatus("");
+  if (file && !ALLOWED_IMAGE_TYPES.has(file.type)) {
+    postImageFileInput.value = "";
+    clearImagePreview();
+    setPostFormStatus("Choose a JPEG, PNG, WebP, GIF, or AVIF image. SVG and other formats are unsupported.", true);
+    return;
+  }
+  if (file && file.size > MAX_IMAGE_SIZE) {
+    postImageFileInput.value = "";
+    clearImagePreview();
+    setPostFormStatus("This image is over the 5 MB limit. Choose a smaller image.", true);
+    return;
+  }
+  if (file && !await hasValidImageSignature(file)) {
+    postImageFileInput.value = "";
+    clearImagePreview();
+    setPostFormStatus("The selected file does not match its image type. Choose a valid JPEG, PNG, WebP, GIF, or AVIF image.", true);
+    return;
+  }
+  if (file) {
+    postImageInput.value = "";
+    postImageInput.required = false;
+  }
+  showImagePreview(file);
+});
+
+document.getElementById("remove-post-image").addEventListener("click", () => {
+  postImageFileInput.value = "";
+  clearImagePreview();
+});
+
+postImageInput.addEventListener("input", () => {
+  if (postImageInput.value.trim()) {
+    postImageFileInput.value = "";
+    clearImagePreview();
+  }
+});
 
 async function openRequestedPostForm() {
   if (inspirationParams.get("create") === "1") {

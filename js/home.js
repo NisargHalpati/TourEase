@@ -140,3 +140,85 @@ if (hero) {
     });
   }
 }
+
+const latestStoriesLayout = document.getElementById("latest-stories-layout");
+const latestStoriesStatus = document.getElementById("latest-stories-status");
+const storyImageFallback = "assets/travel-placeholder.svg";
+
+function renderLatestStories(rows) {
+  latestStoriesLayout.replaceChildren();
+  const createStory = (post, featured = false) => {
+    const article = document.createElement("article");
+    article.className = featured ? "latest-stories__feature" : "latest-stories__story";
+    const link = document.createElement("a");
+    link.className = "latest-stories__link";
+    link.href = `inspiration.html#post-${encodeURIComponent(post.id)}`;
+    const imageWrap = document.createElement("div");
+    imageWrap.className = `latest-stories__image-wrap${featured ? " latest-stories__image-wrap--feature" : ""}`;
+    const image = document.createElement("img");
+    image.className = "latest-stories__image";
+    image.src = post.image_url || storyImageFallback;
+    image.alt = post.location ? `Travel story from ${post.location}` : "Travel story";
+    image.loading = "lazy";
+    image.decoding = "async";
+    image.addEventListener("error", () => { image.src = storyImageFallback; }, { once: true });
+    imageWrap.append(image);
+    const copy = document.createElement("div");
+    copy.className = `latest-stories__copy${featured ? " latest-stories__copy--feature" : ""}`;
+    const title = document.createElement("h3");
+    title.className = "latest-stories__story-title";
+    title.textContent = post.location || post.author_name || "Travel story";
+    const description = document.createElement("p");
+    description.className = "latest-stories__description";
+    const caption = typeof post.caption === "string" ? post.caption.trim() : "";
+    const summary = caption.length > 150 ? `${caption.slice(0, 147)}…` : caption;
+    description.textContent = [post.author_name || "Traveler", summary].filter(Boolean).join(" · ");
+    copy.append(title, description);
+    link.append(imageWrap, copy);
+    article.append(link);
+    return article;
+  };
+
+  latestStoriesLayout.classList.toggle("is-empty", rows.length === 0);
+  if (!rows.length) {
+    latestStoriesStatus.textContent = "No stories are available yet.";
+    latestStoriesStatus.hidden = false;
+    return;
+  }
+  latestStoriesStatus.hidden = true;
+  const feature = createStory(rows[0], true);
+  const supporting = document.createElement("div");
+  supporting.className = "latest-stories__supporting";
+  supporting.append(...rows.slice(1).map((post) => createStory(post)));
+  latestStoriesLayout.append(feature, supporting);
+}
+
+if (latestStoriesLayout && window.supabaseClient) {
+  const homeSupabaseClient = window.supabaseClient;
+  (async () => {
+    try {
+      let { data, error } = await homeSupabaseClient
+        .from("posts")
+        .select("id, author_name, location, caption, image_url, created_at, is_starter")
+        .eq("is_starter", false)
+        .order("created_at", { ascending: false })
+        .limit(3);
+      if (error) throw error;
+      if (!data?.length) {
+        const fallback = await homeSupabaseClient
+          .from("posts")
+          .select("id, author_name, location, caption, image_url, created_at, is_starter")
+          .eq("is_starter", true)
+          .order("created_at", { ascending: false })
+          .limit(3);
+        if (fallback.error) throw fallback.error;
+        data = fallback.data;
+      }
+      renderLatestStories(data || []);
+    } catch (error) {
+      console.error("Unable to load Latest Stories; keeping the local homepage stories.", error);
+      latestStoriesStatus.textContent = "Showing the saved homepage stories while community stories are unavailable.";
+      latestStoriesStatus.hidden = false;
+    }
+  })();
+}

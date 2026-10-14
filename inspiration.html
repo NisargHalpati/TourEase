@@ -102,9 +102,20 @@
 
       <form id="create-post-form" class="create-post-form" novalidate>
         <label class="field">
-          <span>Image URL</span>
-          <input id="post-image" name="image" type="url" placeholder="https://example.com/photo.jpg" required>
+          <span>Image URL (optional if uploading)</span>
+          <input id="post-image" name="image" type="url" placeholder="https://example.com/photo.jpg">
         </label>
+
+        <label class="field">
+          <span>Or upload an image from your device</span>
+          <input id="post-image-file" name="image_file" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif">
+          <span class="field__help">JPEG, PNG, WebP, GIF, or AVIF; maximum 5 MB. SVG and other formats are not supported.</span>
+        </label>
+        <div id="post-image-preview" class="post-image-preview" hidden>
+          <img id="post-image-preview-image" alt="Selected image preview">
+          <button id="remove-post-image" class="btn btn-secondary" type="button">Remove image</button>
+        </div>
+        <p id="post-form-status" class="post-form-status" role="status" aria-live="polite" hidden></p>
 
         <label class="field">
           <span>Caption</span>

@@ -294,6 +294,14 @@
   margin-bottom: clamp(var(--space-6), 2.5vw, var(--space-8));
 }
 
+.latest-stories__status {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+
+.latest-stories__layout.is-empty { display: block; }
+
 .latest-stories__eyebrow {
   margin-bottom: var(--space-2);
   color: var(--color-text-secondary);

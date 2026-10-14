@@ -360,6 +360,15 @@ profilePostsGrid.addEventListener("click", async (event) => {
   deleteButton.disabled = true;
   setAuthStatus("Deleting your post...");
   try {
+    const { data: postToDelete, error: lookupError } = await supabaseClient
+      .from("posts")
+      .select("image_url")
+      .eq("id", deleteButton.dataset.deleteProfilePost)
+      .eq("user_id", currentUser.id)
+      .eq("is_starter", false)
+      .maybeSingle();
+    if (lookupError) throw lookupError;
+    if (!postToDelete) throw new Error("The post was not found or is no longer yours to delete.");
     const { data, error } = await supabaseClient
       .from("posts")
       .delete()
@@ -373,14 +382,45 @@ profilePostsGrid.addEventListener("click", async (event) => {
     if (!data.length) {
       throw new Error("The post was not found or is no longer yours to delete.");
     }
+    const ownedImagePath = getOwnedInspirationImagePath(postToDelete.image_url, currentUser.id);
+    let imageCleanupFailed = false;
+    if (ownedImagePath) {
+      try {
+        const { error: storageError } = await supabaseClient.storage
+          .from("inspiration-images")
+          .remove([ownedImagePath]);
+        if (storageError) throw storageError;
+      } catch (storageError) {
+        imageCleanupFailed = true;
+        console.error("Post was deleted, but its uploaded image could not be removed.", storageError);
+      }
+    }
     await loadProfilePosts(currentUser);
-    setAuthStatus("");
+    setAuthStatus(imageCleanupFailed
+      ? "Post deleted. Its image could not be removed from storage; please try cleanup later."
+      : "");
   } catch (error) {
     console.error("Unable to delete post.", error);
     setAuthStatus(`Unable to delete your post: ${error.message}`, true);
     deleteButton.disabled = false;
   }
 });
+
+function getOwnedInspirationImagePath(imageUrl, userId) {
+  if (typeof imageUrl !== "string") return null;
+  try {
+    const url = new URL(imageUrl);
+    if (!/^https?:$/.test(url.protocol)) return null;
+    if (url.origin !== new URL(SUPABASE_URL).origin) return null;
+    const marker = "/storage/v1/object/public/inspiration-images/";
+    const index = url.pathname.indexOf(marker);
+    if (index < 0) return null;
+    const path = decodeURIComponent(url.pathname.slice(index + marker.length));
+    return path.startsWith(`${userId}/`) ? path : null;
+  } catch (error) {
+    return null;
+  }
+}
 
 supabaseClient.auth.onAuthStateChange((event, session) => {
   if (!["SIGNED_IN", "SIGNED_OUT", "USER_UPDATED"].includes(event)) {
@@ -412,7 +452,16 @@ async function initializeLoginPage() {
       const arrivedFromCallback = Boolean(AUTH_CALLBACK_URL);
       clearAuthCallbackUrl();
       await showProfile(user || data.session.user);
-      if (callbackMessage?.isError) {
+      let profileNotice = "";
+      try {
+        profileNotice = window.sessionStorage.getItem("tourease_profile_notice") || "";
+        window.sessionStorage.removeItem("tourease_profile_notice");
+      } catch (storageError) {
+        console.error("Unable to read the post confirmation message.", storageError);
+      }
+      if (profileNotice) {
+        setAuthStatus(profileNotice);
+      } else if (callbackMessage?.isError) {
         setAuthStatus(callbackMessage.message, true);
       } else if (wasConfirmed && arrivedFromCallback) {
         setAuthStatus("Email verified successfully. You can now log in.");
