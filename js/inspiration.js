@@ -423,8 +423,7 @@ function renderFeed() {
 
     const caption = document.createElement("p");
     caption.className = "post-caption";
-    caption.append(createTextElement("span", "post-caption__author", post.author));
-    caption.append(document.createTextNode(` ${post.caption}`));
+    caption.textContent = post.caption;
     card.append(caption);
 
     const commentsPanel = document.createElement("div");
