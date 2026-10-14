@@ -42,6 +42,7 @@ let inspirationReturnState = null;
 let feedRequestId = 0;
 let previewObjectUrl = null;
 let handledPostAnchor = false;
+const deletingCommentIds = new Set();
 
 function setPostFormStatus(message, isError = false) {
   postFormStatus.textContent = message;
@@ -418,6 +419,7 @@ function renderFeed() {
       commentIcon,
       createTextElement("span", "action-button__count", String(comments.length))
     );
+    commentButton.lastElementChild.dataset.commentCount = post.id;
     actions.append(likeButton, commentButton);
     card.append(actions);
 
@@ -432,16 +434,26 @@ function renderFeed() {
     commentsPanel.append(createTextElement("p", "post-comments__title", "Comments"));
     const commentList = document.createElement("div");
     commentList.className = "comment-list";
+    commentList.dataset.commentList = post.id;
     if (comments.length) {
       comments.forEach((comment) => {
         const commentItem = document.createElement("div");
         commentItem.className = "comment-item";
+        commentItem.dataset.commentId = comment.id;
         const meta = document.createElement("div");
         meta.className = "comment-item__meta";
-        meta.append(
-          createTextElement("span", "comment-item__author", comment.author),
-          createTextElement("span", "", formatDisplayDate(comment.created_at))
-        );
+        meta.append(createTextElement("span", "comment-item__author", comment.author));
+        const tools = document.createElement("div");
+        tools.className = "comment-item__tools";
+        tools.append(createTextElement("span", "", formatDisplayDate(comment.created_at)));
+        if (currentUser && comment.user_id === currentUser.id) {
+          const deleteButton = createTextElement("button", "comment-item__delete", "Delete");
+          deleteButton.type = "button";
+          deleteButton.dataset.deleteComment = comment.id;
+          deleteButton.setAttribute("aria-label", `Delete your comment on ${post.location}`);
+          tools.append(deleteButton);
+        }
+        meta.append(tools);
         commentItem.append(
           meta,
           createTextElement("p", "comment-item__text", comment.content)
@@ -689,6 +701,65 @@ async function addComment(postId, text, button = null) {
     if (button) {
       button.disabled = false;
     }
+  }
+}
+
+async function deleteComment(commentId, button) {
+  if (!currentUser || deletingCommentIds.has(commentId)) return;
+  const comment = [...commentsByPost.values()]
+    .flat()
+    .find((entry) => String(entry.id) === String(commentId));
+  if (!comment || comment.user_id !== currentUser.id) return;
+
+  deletingCommentIds.add(commentId);
+  button.disabled = true;
+  const commentItem = [...feedRoot.querySelectorAll("[data-comment-id]")]
+    .find((element) => element.dataset.commentId === String(commentId));
+  commentItem?.querySelector(".comment-item__delete-status")?.remove();
+  const status = createTextElement("p", "comment-item__delete-status", "Deleting comment…");
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+  commentItem?.append(status);
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("comments")
+      .delete()
+      .eq("id", commentId)
+      .eq("user_id", currentUser.id)
+      .select("id");
+    if (error) throw error;
+    if (!data?.length) {
+      throw new Error("The comment was not found or is no longer yours to delete.");
+    }
+
+    const postComments = (commentsByPost.get(comment.post_id) || [])
+      .filter((entry) => String(entry.id) !== String(commentId));
+    commentsByPost.set(comment.post_id, postComments);
+    commentItem?.remove();
+    if (!postComments.length) {
+      const list = [...feedRoot.querySelectorAll("[data-comment-list]")]
+        .find((element) => element.dataset.commentList === String(comment.post_id));
+      list?.append(createTextElement(
+        "p",
+        "comment-item__text",
+        "No comments yet. Start the conversation."
+      ));
+    }
+    const count = [...feedRoot.querySelectorAll("[data-comment-count]")]
+      .find((element) => element.dataset.commentCount === String(comment.post_id));
+    if (count) count.textContent = String(postComments.length);
+  } catch (error) {
+    console.error("Unable to delete comment.", error);
+    if (status.isConnected) {
+      status.classList.add("is-error");
+      status.textContent = `Unable to delete your comment: ${error.message}`;
+    } else {
+      showFeedMessage(`Unable to delete your comment: ${error.message}`, true);
+    }
+    button.disabled = false;
+  } finally {
+    deletingCommentIds.delete(commentId);
   }
 }
 
@@ -1045,6 +1116,15 @@ feedRoot.addEventListener("click", async (event) => {
   if (!(target instanceof Element)) {
     return;
   }
+  const deleteButton = target.closest("[data-delete-comment]");
+  if (deleteButton) {
+    if (!currentUser || deleteButton.disabled) return;
+    if (window.confirm("Delete your comment?")) {
+      await deleteComment(deleteButton.dataset.deleteComment, deleteButton);
+    }
+    return;
+  }
+
   const likeButton = target.closest("[data-like-id]");
   if (likeButton) {
     await toggleLike(likeButton.dataset.likeId, likeButton);

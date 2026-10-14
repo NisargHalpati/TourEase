@@ -89,16 +89,28 @@
 
 .top-destinations__eyebrow {
   margin-bottom: var(--space-2);
-  color: var(--color-text-secondary);
+  color: var(--color-accent);
   font-size: var(--text-label);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
 }
 
 .top-destinations__title {
-  font-size: var(--text-page-heading);
+  font-size: clamp(1.9rem, 3.6vw, 3.25rem);
+  font-weight: var(--font-weight-medium);
   letter-spacing: -0.04em;
+}
+
+.top-destinations__title::after,
+.latest-stories__title::after {
+  display: block;
+  width: 2.75rem;
+  height: 2px;
+  margin-top: var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  content: "";
 }
 
 .top-destinations__intro {
@@ -281,8 +293,18 @@
 }
 
 .latest-stories {
+  position: relative;
   padding: clamp(var(--space-12), 5vw, var(--space-16)) var(--page-gutter);
   background: var(--color-bg);
+}
+
+.latest-stories::before {
+  display: block;
+  width: min(100%, 20rem);
+  height: 1px;
+  margin: 0 auto clamp(var(--space-8), 4vw, var(--space-12));
+  background: var(--color-border);
+  content: "";
 }
 
 .latest-stories__inner {
@@ -304,15 +326,16 @@
 
 .latest-stories__eyebrow {
   margin-bottom: var(--space-2);
-  color: var(--color-text-secondary);
+  color: var(--color-accent);
   font-size: var(--text-label);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
 }
 
 .latest-stories__title {
-  font-size: var(--text-page-heading);
+  font-size: clamp(1.9rem, 3.6vw, 3.25rem);
+  font-weight: var(--font-weight-medium);
   letter-spacing: -0.04em;
 }
 

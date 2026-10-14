@@ -602,6 +602,35 @@
   font-size: var(--text-caption);
 }
 
+.destination-detail__wikipedia {
+  margin-top: var(--space-6);
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.destination-detail__wikipedia:hover {
+  border-color: #c8ceca;
+  background: var(--color-bg-secondary);
+  color: var(--color-text);
+}
+
+.destination-detail__external-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.4;
+}
+
 .destination-detail-error {
   margin-top: var(--space-8);
   color: #9b3c32;

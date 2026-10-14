@@ -8,6 +8,7 @@ const detailName = document.getElementById("destination-detail-name");
 const detailLocation = document.getElementById("destination-detail-location");
 const detailDescription = document.getElementById("destination-detail-description");
 const detailFacts = document.getElementById("destination-detail-facts");
+const detailWikipediaLink = document.getElementById("destination-detail-wikipedia");
 const detailError = document.getElementById("destination-detail-error");
 
 function addFact(value) {
@@ -60,6 +61,10 @@ async function loadDestination() {
       ? destination.categories.join(" · ")
       : "";
     detailName.textContent = destination.name || "Untitled destination";
+    const wikipediaSearch = new URL("https://en.wikipedia.org/w/index.php");
+    wikipediaSearch.searchParams.set("search", destination.name || "Destination");
+    detailWikipediaLink.href = wikipediaSearch.href;
+    detailWikipediaLink.hidden = false;
     detailLocation.textContent = [destination.location?.district, destination.location?.state]
       .filter(Boolean)
       .join(", ");
