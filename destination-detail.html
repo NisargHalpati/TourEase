@@ -7,8 +7,10 @@
   <link rel="stylesheet" href="css/global.css">
   <link rel="stylesheet" href="css/navbar.css">
   <link rel="stylesheet" href="css/destinations.css">
+  <link rel="stylesheet" href="css/bucketlist.css">
   <link rel="stylesheet" href="css/footer.css">
   <script src="js/main.js" defer></script>
+  <script src="js/bucketlist.js" defer></script>
   <script src="js/destination-detail.js" defer></script>
 </head>
 <body>
@@ -31,6 +33,11 @@
         <a href="destinations.html" aria-current="page">Destinations</a>
         <a href="inspiration.html">Inspirations</a>
         <a href="index.html#about">About</a>
+        <a href="#saved" class="navbar-saved-link js-open-bucketlist" aria-label="View saved bucketlist">
+          <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+          <span>Saved</span>
+          <span class="navbar-saved-badge" hidden>0</span>
+        </a>
       </div>
     </nav>
   </header>
@@ -53,20 +60,28 @@
         <p id="destination-detail-location" class="destination-detail__location"></p>
         <p id="destination-detail-description" class="destination-detail__description"></p>
         <div id="destination-detail-facts" class="destination-detail__facts"></div>
-        <a
-          id="destination-detail-wikipedia"
-          class="btn btn-secondary destination-detail__wikipedia"
-          href="https://en.wikipedia.org/"
-          target="_blank"
-          rel="noopener noreferrer"
-          hidden
-        >
-          <span>Know More on Wikipedia</span>
-          <svg class="destination-detail__external-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-            <path d="M9 2h5v5M14 2 7 9"></path>
-            <path d="M12 9v4a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4"></path>
-          </svg>
-        </a>
+
+        <!-- Detail Actions: Save & External Link -->
+        <div class="destination-detail__actions" style="display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.5rem;">
+          <button id="detail-save-btn" class="btn btn-primary" type="button">
+            <svg viewBox="0 0 24 24" style="width: 1.15rem; height: 1.15rem; stroke: currentColor; fill: none; stroke-width: 2;"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+            <span id="detail-save-label">Save to My Bucketlist</span>
+          </button>
+          <a
+            id="destination-detail-wikipedia"
+            class="btn btn-secondary destination-detail__wikipedia"
+            href="https://en.wikipedia.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+            hidden
+          >
+            <span>Know More on Wikipedia</span>
+            <svg class="destination-detail__external-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M9 2h5v5M14 2 7 9"></path>
+              <path d="M12 9v4a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4"></path>
+            </svg>
+          </a>
+        </div>
       </article>
     </div>
     <p id="destination-detail-error" class="destination-detail-error" role="alert" hidden></p>

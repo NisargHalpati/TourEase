@@ -271,15 +271,66 @@ function addBudgetFilter() {
   activeFilterGroup.append(fieldset);
 }
 
+function addDifficultyFilter() {
+  const container = document.createElement("div");
+  container.className = "destination-filter destination-filter--difficulty";
+  
+  const label = document.createElement("span");
+  label.textContent = "Difficulty (Easy / Hard)";
+  label.className = "destination-filter__label";
+
+  const hiddenInput = document.createElement("input");
+  hiddenInput.type = "hidden";
+  hiddenInput.name = "difficulty";
+  hiddenInput.id = "filter-difficulty-value";
+  hiddenInput.dataset.filterPath = "difficulty";
+  hiddenInput.value = "";
+
+  const pillGroup = document.createElement("div");
+  pillGroup.className = "difficulty-pills";
+  pillGroup.setAttribute("role", "radiogroup");
+
+  const hint = document.createElement("p");
+  hint.className = "difficulty-hint";
+  hint.id = "difficulty-hint";
+  hint.textContent = "Showing all difficulties";
+
+  const options = [
+    { value: "", label: "All", hint: "Showing all difficulties" },
+    { value: "easy", label: "🟢 Easy", class: "difficulty-pill--easy", hint: "Relaxed travel, family friendly, easy walks" },
+    { value: "moderate", label: "🟡 Moderate", class: "difficulty-pill--moderate", hint: "Light hikes, scenic hills, moderate pace" },
+    { value: "hard", label: "🔴 Hard", class: "difficulty-pill--hard", hint: "Challenging treks, high altitude, demanding terrain" },
+  ];
+
+  options.forEach((opt) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `difficulty-pill ${opt.class || ""} ${opt.value === "" ? "is-active" : ""}`;
+    btn.textContent = opt.label;
+    btn.dataset.diffValue = opt.value;
+    btn.addEventListener("click", () => {
+      pillGroup.querySelectorAll(".difficulty-pill").forEach((b) => b.classList.remove("is-active"));
+      btn.classList.add("is-active");
+      hiddenInput.value = opt.value;
+      hint.textContent = opt.hint;
+      renderDestinations();
+    });
+    pillGroup.append(btn);
+  });
+
+  container.append(label, hiddenInput, pillGroup, hint);
+  activeFilterGroup.append(container);
+}
+
 function buildFilters() {
   activeFilterGroup = primaryFilters;
   addSelectFilter("location.state", "State");
-  addBudgetFilter();
-  addSelectFilter("duration", "Duration");
-  addSelectFilter("difficulty", "Difficulty");
   addSelectFilter("categories", "Category");
+  addDifficultyFilter();
 
   activeFilterGroup = additionalFilters;
+  addBudgetFilter();
+  addSelectFilter("duration", "Duration");
   addSelectFilter("crowd", "Crowd level");
   addSelectFilter("bestSeason", "Best season");
   addSelectFilter("companions", "Companions");
@@ -289,19 +340,30 @@ function buildFilters() {
 function getActiveFilterValues() {
   const selected = [...filterFields.querySelectorAll("[data-filter-path]")]
     .filter((control) => control.value.trim())
-    .map((control) => ({
-      key: control.dataset.filterPath,
-      label: control.closest(".destination-filter").querySelector("span").textContent,
-      value: control.value.trim(),
-      type: control.tagName === "SELECT" ? "select" : "text",
-    }));
+    .map((control) => {
+      let label = control.closest(".destination-filter")?.querySelector("span")?.textContent || control.dataset.filterPath;
+      let displayValue = control.value.trim();
+      if (control.dataset.filterPath === "difficulty") {
+        label = "Difficulty";
+        if (displayValue === "easy") displayValue = "🟢 Easy";
+        else if (displayValue === "moderate") displayValue = "🟡 Moderate";
+        else if (displayValue === "hard") displayValue = "🔴 Hard";
+      }
+      return {
+        key: control.dataset.filterPath,
+        label,
+        value: displayValue,
+        raw: control.value.trim(),
+        type: control.tagName === "SELECT" ? "select" : "text",
+      };
+    });
   const budgetMin = filterFields.querySelector('[data-budget-part="budgetMin"]')?.value.trim();
   const budgetMax = filterFields.querySelector('[data-budget-part="budgetMax"]')?.value.trim();
   if (budgetMin) {
-    selected.push({ key: "budgetMin", label: "Min budget", value: budgetMin, type: "budget" });
+    selected.push({ key: "budgetMin", label: "Min budget", value: `₹${budgetMin}`, type: "budget" });
   }
   if (budgetMax) {
-    selected.push({ key: "budgetMax", label: "Max budget", value: budgetMax, type: "budget" });
+    selected.push({ key: "budgetMax", label: "Max budget", value: `₹${budgetMax}`, type: "budget" });
   }
   const query = searchInput.value.trim();
   if (query) {
@@ -318,9 +380,34 @@ function matchesDestination(destination, filters, query, budgetMin, budgetMax) {
   for (const [path, selectedValue] of filters) {
     const candidateValues = getTextValues(getField(destination, path));
     const normalizedSelected = normalizeText(selectedValue);
-    const matchesValue = path === "weather"
-      ? (value) => normalizeText(value).includes(normalizedSelected)
-      : (value) => normalizeText(value) === normalizedSelected;
+    if (!normalizedSelected) continue;
+
+    let matchesValue;
+    if (path === "difficulty") {
+      if (normalizedSelected === "easy") {
+        matchesValue = (value) => {
+          const val = normalizeText(value);
+          return val.includes("easy") || val === "easy";
+        };
+      } else if (normalizedSelected === "moderate") {
+        matchesValue = (value) => {
+          const val = normalizeText(value);
+          return val.includes("moderate") && !val.includes("easy-moderate");
+        };
+      } else if (normalizedSelected === "hard") {
+        matchesValue = (value) => {
+          const val = normalizeText(value);
+          return val.includes("hard") || val.includes("difficult");
+        };
+      } else {
+        matchesValue = (value) => normalizeText(value) === normalizedSelected;
+      }
+    } else if (path === "weather") {
+      matchesValue = (value) => normalizeText(value).includes(normalizedSelected);
+    } else {
+      matchesValue = (value) => normalizeText(value) === normalizedSelected;
+    }
+
     if (!candidateValues.some(matchesValue)) {
       return false;
     }
@@ -333,6 +420,30 @@ function matchesDestination(destination, filters, query, budgetMin, budgetMax) {
     return false;
   }
   return true;
+}
+
+let currentSort = "default";
+
+function sortDestinations(list) {
+  const sorted = [...list];
+  if (currentSort === "budget-low") {
+    return sorted.sort((a, b) => Number(a.budget?.min || 0) - Number(b.budget?.min || 0));
+  }
+  if (currentSort === "budget-high") {
+    return sorted.sort((a, b) => Number(b.budget?.max || 0) - Number(a.budget?.max || 0));
+  }
+  if (currentSort === "difficulty-easy") {
+    const diffOrder = { "easy": 1, "easy-moderate": 2, "moderate": 3, "difficult": 4 };
+    return sorted.sort((a, b) => (diffOrder[normalizeText(a.difficulty)] || 9) - (diffOrder[normalizeText(b.difficulty)] || 9));
+  }
+  if (currentSort === "difficulty-hard") {
+    const diffOrder = { "difficult": 1, "moderate": 2, "easy-moderate": 3, "easy": 4 };
+    return sorted.sort((a, b) => (diffOrder[normalizeText(a.difficulty)] || 9) - (diffOrder[normalizeText(b.difficulty)] || 9));
+  }
+  if (currentSort === "name-asc") {
+    return sorted.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  }
+  return sorted;
 }
 
 function currentBudgetValue(selector) {
@@ -380,11 +491,68 @@ function formatBudget(destination) {
 }
 
 function createDestinationCard(destination) {
-  const link = document.createElement("a");
-  link.className = "destination-card";
-  link.href = `${DESTINATION_DETAIL_URL}?id=${encodeURIComponent(destination.id)}`;
+  const card = document.createElement("article");
+  card.className = "destination-card";
+  const detailUrl = `${DESTINATION_DETAIL_URL}?id=${encodeURIComponent(destination.id)}`;
+
   const media = document.createElement("div");
   media.className = "destination-card__media";
+
+  // Difficulty Badge
+  const diff = destination.difficulty || "";
+  const normDiff = normalizeText(diff);
+  let badgeClass = "badge--moderate";
+  let badgeLabel = diff || "Moderate";
+  if (normDiff.includes("easy")) {
+    badgeClass = "badge--easy";
+    badgeLabel = "🟢 " + diff;
+  } else if (normDiff.includes("difficult") || normDiff.includes("hard")) {
+    badgeClass = "badge--hard";
+    badgeLabel = "🔴 Hard";
+  } else {
+    badgeLabel = "🟡 " + (diff || "Moderate");
+  }
+  const diffBadge = document.createElement("span");
+  diffBadge.className = `destination-card__difficulty-badge ${badgeClass}`;
+  diffBadge.textContent = badgeLabel;
+
+  // Bucketlist Save Button
+  const isSaved = window.tourEaseBucketlist ? window.tourEaseBucketlist.isSaved(destination.id) : false;
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.className = `destination-card__save-btn ${isSaved ? "is-saved" : ""}`;
+  saveBtn.setAttribute("data-save-id", destination.id);
+  saveBtn.setAttribute("aria-label", isSaved ? "Remove from saved trips" : "Save to my bucketlist");
+  saveBtn.setAttribute("title", isSaved ? "Saved" : "Save destination");
+  saveBtn.innerHTML = `
+    <svg viewBox="0 0 24 24">
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+    </svg>
+  `;
+  saveBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (window.tourEaseBucketlist) {
+      window.tourEaseBucketlist.toggle({
+        id: destination.id,
+        name: destination.name,
+        location: [destination.location?.district, destination.location?.state].filter(Boolean).join(", "),
+        image: destination.images?.[0]?.url || "",
+        category: destination.categories?.[0] || "",
+        difficulty: destination.difficulty,
+        budget: formatBudget(destination),
+        budgetEstimate: destination.budget,
+        url: detailUrl,
+      });
+    }
+  });
+
+  const mediaLink = document.createElement("a");
+  mediaLink.href = detailUrl;
+  mediaLink.className = "destination-card__media-link";
+  mediaLink.setAttribute("tabindex", "-1");
+  mediaLink.setAttribute("aria-hidden", "true");
+
   const image = destination.images?.find((entry) => typeof entry?.url === "string" && entry.url.trim());
   if (image) {
     const img = document.createElement("img");
@@ -402,14 +570,16 @@ function createDestinationCard(destination) {
       fallback.hidden = false;
       media.classList.add("is-fallback");
     }, { once: true });
-    media.append(img, fallback);
+    mediaLink.append(img, fallback);
   } else {
     media.classList.add("is-fallback");
     const fallback = document.createElement("span");
     fallback.className = "destination-card__image-fallback";
     fallback.textContent = "Image unavailable";
-    media.append(fallback);
+    mediaLink.append(fallback);
   }
+
+  media.append(mediaLink, diffBadge, saveBtn);
 
   const content = document.createElement("div");
   content.className = "destination-card__content";
@@ -417,9 +587,14 @@ function createDestinationCard(destination) {
   const eyebrow = document.createElement("p");
   eyebrow.className = "destination-card__eyebrow";
   eyebrow.textContent = categoryList.slice(0, 2).join(" · ") || destination.location?.state || "India";
+  
   const title = document.createElement("h3");
   title.className = "destination-card__title";
-  title.textContent = destination.name || "Untitled destination";
+  const titleLink = document.createElement("a");
+  titleLink.href = detailUrl;
+  titleLink.textContent = destination.name || "Untitled destination";
+  title.append(titleLink);
+
   const place = document.createElement("p");
   place.className = "destination-card__location";
   place.textContent = [destination.location?.district, destination.location?.state]
@@ -435,8 +610,8 @@ function createDestinationCard(destination) {
       metadata.append(item);
     });
   content.append(eyebrow, title, place, metadata);
-  link.append(media, content);
-  return link;
+  card.append(media, content);
+  return card;
 }
 
 function renderPageNumbers(totalPages) {
@@ -509,9 +684,10 @@ function renderDestinations() {
   const sourceDestinations = destinationSelection
     ? destinationSelection.destinations
     : destinations;
-  filteredDestinations = sourceDestinations.filter((destination) =>
+  const matched = sourceDestinations.filter((destination) =>
     matchesDestination(destination, filters, query, budgetMin, budgetMax)
   );
+  filteredDestinations = sortDestinations(matched);
   currentPage = 1;
   renderCurrentPage();
   updateActiveFilters();
@@ -526,6 +702,28 @@ function clearFilters() {
   filterFields.querySelectorAll("[data-budget-part]").forEach((control) => {
     control.value = "";
   });
+  
+  // Reset difficulty pill
+  const diffInput = document.getElementById("filter-difficulty-value");
+  if (diffInput) diffInput.value = "";
+  document.querySelectorAll(".difficulty-pill").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.diffValue === "");
+  });
+  const diffHint = document.getElementById("difficulty-hint");
+  if (diffHint) diffHint.textContent = "Showing all difficulties";
+
+  // Reset category chips
+  document.querySelectorAll("[data-chip-category]").forEach((chip) => {
+    chip.classList.toggle("is-active", chip.dataset.chipCategory === "");
+  });
+
+  // Reset sort
+  const sortSelect = document.getElementById("destination-sort");
+  if (sortSelect) {
+    sortSelect.value = "default";
+    currentSort = "default";
+  }
+
   setMoreFiltersExpanded(false);
   renderDestinations();
 }
@@ -620,6 +818,57 @@ filterFields.addEventListener("input", (event) => {
     renderDestinations();
   }
 });
+function setupQuickChips() {
+  const chips = document.querySelectorAll("[data-chip-category]");
+  chips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      chips.forEach((c) => c.classList.remove("is-active"));
+      chip.classList.add("is-active");
+      const category = chip.dataset.chipCategory || "";
+      const categorySelect = filterFields.querySelector('select[name="categories"]');
+      if (categorySelect) {
+        categorySelect.value = category;
+      }
+      renderDestinations();
+    });
+  });
+}
+
+function setupCostCalculator() {
+  const daysSlider = document.getElementById("calc-days");
+  const peopleSlider = document.getElementById("calc-people");
+  const daysLabel = document.getElementById("calc-days-label");
+  const peopleLabel = document.getElementById("calc-people-label");
+  const costOutput = document.getElementById("calc-total-cost");
+
+  if (!daysSlider || !peopleSlider) return;
+
+  function recalculate() {
+    const days = Number(daysSlider.value);
+    const people = Number(peopleSlider.value);
+    daysLabel.textContent = `${days} ${days === 1 ? "Day" : "Days"}`;
+    peopleLabel.textContent = `${people} ${people === 1 ? "Person" : "People"}`;
+    const minCost = days * people * 2000;
+    const maxCost = days * people * 4500;
+    costOutput.textContent = `₹${minCost.toLocaleString("en-IN")} – ₹${maxCost.toLocaleString("en-IN")}`;
+  }
+
+  daysSlider.addEventListener("input", recalculate);
+  peopleSlider.addEventListener("input", recalculate);
+  recalculate();
+}
+
+function setupSortSelect() {
+  const sortSelect = document.getElementById("destination-sort");
+  if (!sortSelect) return;
+  sortSelect.addEventListener("change", () => {
+    currentSort = sortSelect.value;
+    filteredDestinations = sortDestinations(filteredDestinations);
+    currentPage = 1;
+    renderCurrentPage();
+  });
+}
+
 clearFiltersButton.addEventListener("click", clearFilters);
 moreFiltersToggle.addEventListener("click", () => {
   setMoreFiltersExpanded(moreFiltersToggle.getAttribute("aria-expanded") !== "true");
@@ -633,8 +882,22 @@ activeFilters.addEventListener("click", (event) => {
     searchInput.value = "";
   } else if (chip.dataset.clearFilter === "budgetMin" || chip.dataset.clearFilter === "budgetMax") {
     filterFields.querySelector(`[data-budget-part="${chip.dataset.clearFilter}"]`).value = "";
+  } else if (chip.dataset.clearFilter === "difficulty") {
+    const diffInput = document.getElementById("filter-difficulty-value");
+    if (diffInput) diffInput.value = "";
+    document.querySelectorAll(".difficulty-pill").forEach((btn) => {
+      btn.classList.toggle("is-active", btn.dataset.diffValue === "");
+    });
+    const diffHint = document.getElementById("difficulty-hint");
+    if (diffHint) diffHint.textContent = "Showing all difficulties";
   } else {
-    filterFields.querySelector(`[data-filter-path="${CSS.escape(chip.dataset.clearFilter)}"]`).value = "";
+    const el = filterFields.querySelector(`[data-filter-path="${CSS.escape(chip.dataset.clearFilter)}"]`);
+    if (el) el.value = "";
+    if (chip.dataset.clearFilter === "categories") {
+      document.querySelectorAll("[data-chip-category]").forEach((c) => {
+        c.classList.toggle("is-active", c.dataset.chipCategory === "");
+      });
+    }
   }
   renderDestinations();
 });
@@ -658,4 +921,7 @@ filterToggle.addEventListener("click", () => {
 compactFilters.addEventListener("change", setCompactFilterVisibility);
 setMoreFiltersExpanded(false);
 setCompactFilterVisibility();
+setupQuickChips();
+setupCostCalculator();
+setupSortSelect();
 loadDestinations();

@@ -1,146 +1,98 @@
+/**
+ * TourEase Inspiration & Community Stories Module
+ * Full feed with reliable fallback, State/Category/Difficulty filtering, Lightbox, Bucketlist save, and local persistence.
+ */
+
 const INSPIRATION_RETURN_KEY = "tourease_inspiration_return";
+const LOCAL_POSTS_KEY = "tourease_local_posts";
+const LOCAL_LIKES_KEY = "tourease_local_likes";
+const LOCAL_COMMENTS_KEY = "tourease_local_comments";
 const PLACEHOLDER_IMAGE = "assets/travel-placeholder.svg";
 
+// Elements
 const feedRoot = document.getElementById("inspiration-feed");
+const storyCountEl = document.getElementById("inspiration-story-count");
+const activeTagsEl = document.getElementById("inspiration-active-tags");
+const searchInput = document.getElementById("inspiration-search");
+const stateSelect = document.getElementById("insp-state-select");
+const vibeChips = document.querySelectorAll(".insp-chip");
+const diffPills = document.querySelectorAll(".insp-diff-pill");
+const clearFiltersBtn = document.getElementById("clear-inspiration-filters");
+
+// Lightbox Elements
+const lightboxModal = document.getElementById("image-lightbox-modal");
+const lightboxImage = document.getElementById("lightbox-image");
+const lightboxTitle = document.getElementById("lightbox-title");
+const lightboxDesc = document.getElementById("lightbox-desc");
+const closeLightboxBtn = document.getElementById("close-lightbox");
+const lightboxBackdrop = document.getElementById("lightbox-backdrop");
+
+// Create Post Modal Elements
 const createButton = document.getElementById("create-post-button");
-const loginRequiredMessage = document.getElementById("login-required-message");
-const authStatus = document.getElementById("inspiration-auth-status");
-const memberActions = document.getElementById("inspiration-member-actions");
-const accountAvatarImage = document.getElementById("account-avatar-image");
-const accountAvatarFallback = document.getElementById("account-avatar-fallback");
-const accountUserName = document.getElementById("account-user-name");
-const notificationBell = document.getElementById("notification-bell");
-const notificationPanel = document.getElementById("notification-panel");
+const heroCreateBtn = document.getElementById("hero-create-btn");
 const modal = document.getElementById("create-post-modal");
 const createPostForm = document.getElementById("create-post-form");
 const closePostModalButton = document.getElementById("close-post-modal");
 const cancelPostButton = document.getElementById("cancel-post-form");
-const createPostTitle = document.getElementById("create-post-title");
 const submitPostButton = createPostForm.querySelector('button[type="submit"]');
 const postImageInput = document.getElementById("post-image");
 const postImageFileInput = document.getElementById("post-image-file");
 const postImagePreview = document.getElementById("post-image-preview");
 const postImagePreviewImage = document.getElementById("post-image-preview-image");
 const postFormStatus = document.getElementById("post-form-status");
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"]);
-const IMAGE_BUCKET = "inspiration-images";
-const inspirationParams = new URLSearchParams(window.location.search);
-const restoreRequested = inspirationParams.get("restore") === "1";
-const returnToProfile = inspirationParams.get("returnToProfile") === "1";
 
+// Account Elements
+const loginRequiredMessage = document.getElementById("login-required-message");
+const authStatus = document.getElementById("inspiration-auth-status");
+const memberActions = document.getElementById("inspiration-member-actions");
+const accountAvatarImage = document.getElementById("account-avatar-image");
+const accountAvatarFallback = document.getElementById("account-avatar-fallback");
+const accountUserName = document.getElementById("account-user-name");
+
+// State
+let allStories = [];
+let filteredStories = [];
 let currentUser = null;
 let currentProfile = null;
-let accountErrorMessage = "";
-let posts = [];
-let likesByPost = new Map();
-let commentsByPost = new Map();
-let hasRestoredInspirationState = false;
-let pageHasShown = false;
-let editingPostId = null;
-let inspirationReturnState = null;
-let feedRequestId = 0;
-let previewObjectUrl = null;
-let handledPostAnchor = false;
-const deletingCommentIds = new Set();
+let postImagePreviewUrl = null;
+let activeFilters = {
+  search: "",
+  state: "",
+  category: "",
+  difficulty: "",
+};
 
-function setPostFormStatus(message, isError = false) {
-  postFormStatus.textContent = message;
-  postFormStatus.hidden = !message;
-  postFormStatus.classList.toggle("is-error", isError);
-}
+// Helper: infer category & difficulty if missing
+function inferStoryDetails(caption = "", location = "") {
+  const text = (caption + " " + location).toLowerCase();
+  let category = "nature";
+  let difficulty = "Moderate";
 
-function clearImagePreview() {
-  if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
-  previewObjectUrl = null;
-  postImagePreviewImage.removeAttribute("src");
-  postImagePreview.hidden = true;
-}
-
-function showImagePreview(file) {
-  clearImagePreview();
-  if (!file) return;
-  previewObjectUrl = URL.createObjectURL(file);
-  postImagePreviewImage.src = previewObjectUrl;
-  postImagePreview.hidden = false;
-}
-
-async function hasValidImageSignature(file) {
-  const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
-  const starts = (...values) => values.every((value, index) => bytes[index] === value);
-  if (file.type === "image/jpeg") return starts(0xff, 0xd8, 0xff);
-  if (file.type === "image/png") return starts(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
-  if (file.type === "image/webp") return starts(0x52, 0x49, 0x46, 0x46) && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
-  if (file.type === "image/gif") return starts(0x47, 0x49, 0x46, 0x38);
-  if (file.type === "image/avif") return bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70
-    && ["avif", "avis"].includes(String.fromCharCode(...bytes.slice(8, 12)));
-  return false;
-}
-
-function getOwnedStoragePath(imageUrl, userId) {
-  const safeUrl = getSafeImageUrl(imageUrl);
-  if (!safeUrl) return null;
-  try {
-    const url = new URL(safeUrl);
-    if (url.origin !== new URL(SUPABASE_URL).origin) return null;
-    const marker = `/storage/v1/object/public/${IMAGE_BUCKET}/`;
-    const index = url.pathname.indexOf(marker);
-    if (index < 0) return null;
-    const path = decodeURIComponent(url.pathname.slice(index + marker.length));
-    return path.startsWith(`${userId}/`) ? path : null;
-  } catch (error) {
-    return null;
+  if (text.includes("beach") || text.includes("sunset") || text.includes("water") || text.includes("slow") || text.includes("coast") || text.includes("goa") || text.includes("kerala")) {
+    category = "beach";
+    difficulty = "Easy";
+  } else if (text.includes("fort") || text.includes("desert") || text.includes("temple") || text.includes("palace") || text.includes("rajasthan") || text.includes("heritage")) {
+    category = "heritage";
+    difficulty = "Easy";
+  } else if (text.includes("ladakh") || text.includes("high") || text.includes("climb") || text.includes("steep") || text.includes("challenging") || text.includes("pass")) {
+    category = "mountains";
+    difficulty = "Hard";
+  } else if (text.includes("road") || text.includes("trip") || text.includes("drive") || text.includes("himachal")) {
+    category = "roadtrip";
+    difficulty = "Moderate";
+  } else if (text.includes("mountain") || text.includes("valley") || text.includes("kashmir") || text.includes("hill")) {
+    category = "mountains";
+    difficulty = "Moderate";
+  } else if (text.includes("rain") || text.includes("cloud") || text.includes("waterfall") || text.includes("mist") || text.includes("meghalaya")) {
+    category = "nature";
+    difficulty = "Moderate";
   }
-}
 
-async function removeOwnedImage(imageUrl, userId) {
-  const path = getOwnedStoragePath(imageUrl, userId);
-  if (!path) return;
-  const { error } = await supabaseClient.storage.from(IMAGE_BUCKET).remove([path]);
-  if (error) throw error;
-}
-
-if (restoreRequested) {
-  window.history.scrollRestoration = "manual";
-  window.addEventListener("pagehide", () => {
-    window.history.scrollRestoration = "auto";
-  }, { once: true });
-
-  try {
-    const savedState = window.sessionStorage.getItem(INSPIRATION_RETURN_KEY);
-    inspirationReturnState = savedState ? JSON.parse(savedState) : null;
-  } catch (error) {
-    console.error("Unable to read saved Inspirations state.", error);
-  }
-}
-
-window.addEventListener("pageshow", () => {
-  pageHasShown = true;
-}, { once: true });
-
-function createTextElement(tagName, className, text) {
-  const element = document.createElement(tagName);
-  if (className) {
-    element.className = className;
-  }
-  element.textContent = text;
-  return element;
-}
-
-function createExternalLink(url, text) {
-  const link = document.createElement("a");
-  link.href = url;
-  link.textContent = text;
-  link.target = "_blank";
-  link.rel = "noopener noreferrer";
-  return link;
+  return { category, difficulty };
 }
 
 function getSafeImageUrl(value) {
-  if (typeof value !== "string" || !value.trim()) {
-    return null;
-  }
-
+  if (typeof value !== "string" || !value.trim()) return null;
   try {
     const url = new URL(value, document.baseURI);
     return ["http:", "https:"].includes(url.protocol) ? url.href : null;
@@ -149,30 +101,19 @@ function getSafeImageUrl(value) {
   }
 }
 
-function getImageAttribution(imageUrl) {
-  const credits = {
-    "https://upload.wikimedia.org/wikipedia/commons/b/b8/Kumarakom.JPG": {
-      author: "Sulfis",
-      authorUrl: "https://commons.wikimedia.org/wiki/User:Sulfis",
-      workTitle: "Kumarakom.JPG",
-      fileUrl: "https://commons.wikimedia.org/wiki/File:Kumarakom.JPG",
-    },
-    "https://upload.wikimedia.org/wikipedia/commons/f/f6/Pahalgam_Valley.jpg": {
-      author: "KennyOMG",
-      authorUrl: "https://commons.wikimedia.org/wiki/User:KennyOMG",
-      workTitle: "Pahalgam Valley.jpg",
-      fileUrl: "https://commons.wikimedia.org/wiki/File:Pahalgam_Valley.jpg",
-    },
-  };
-  return credits[imageUrl] || null;
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character]);
 }
 
 function formatDisplayDate(dateString) {
   const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) {
-    return "Just now";
-  }
-
+  if (Number.isNaN(date.getTime())) return "Recently";
   return new Intl.DateTimeFormat("en", {
     month: "short",
     day: "numeric",
@@ -180,1022 +121,745 @@ function formatDisplayDate(dateString) {
   }).format(date);
 }
 
-function showFeedMessage(message, isError = false, includeRetry = false) {
-  let status = feedRoot.querySelector("[data-feed-message]");
-  if (!status) {
-    status = createTextElement("p", "feed-status", "");
-    status.dataset.feedMessage = "true";
-    feedRoot.prepend(status);
-  }
-  status.classList.toggle("is-error", isError);
-  status.replaceChildren(document.createTextNode(message));
-
-  if (includeRetry) {
-    const retryButton = createTextElement("button", "feed-retry", "Try again");
-    retryButton.type = "button";
-    retryButton.addEventListener("click", () => {
-      void loadFeed();
-    }, { once: true });
-    status.append(document.createTextNode(" "), retryButton);
-  }
-}
-
-function normalizePost(row) {
-  return {
-    id: String(row.id),
-    userId: row.user_id,
-    author: typeof row.author_name === "string" && row.author_name
-      ? row.author_name
-      : "Traveler",
-    caption: typeof row.caption === "string" ? row.caption : "",
-    image: getSafeImageUrl(row.image_url) || PLACEHOLDER_IMAGE,
-    location: typeof row.location === "string" && row.location
-      ? row.location
-      : "India",
-    date: row.created_at,
-    isStarter: row.is_starter === true,
-    isUserPost: row.is_starter !== true
-      && Boolean(row.user_id)
-      && row.user_id === currentUser?.id,
-  };
-}
-
-function getPostComments(postId) {
-  return commentsByPost.get(postId) || [];
-}
-
-function getPostLikes(postId) {
-  return likesByPost.get(postId) || [];
-}
-
-function syncAccountActions() {
-  const isLoggedIn = Boolean(currentUser);
-  loginRequiredMessage.hidden = isLoggedIn;
-  memberActions.hidden = !isLoggedIn;
-  notificationBell.hidden = true;
-  notificationPanel.hidden = true;
-  authStatus.textContent = accountErrorMessage;
-  authStatus.hidden = !accountErrorMessage;
-
-  if (!isLoggedIn) {
-    accountUserName.textContent = "";
-    accountAvatarImage.hidden = true;
-    accountAvatarImage.removeAttribute("src");
-    accountAvatarFallback.hidden = false;
-    accountAvatarFallback.textContent = "";
-    return;
-  }
-
-  accountUserName.textContent = currentProfile?.display_name
-    || currentUser.user_metadata?.display_name
-    || "Traveler";
-  accountAvatarFallback.textContent = accountUserName.textContent
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part[0])
-    .slice(0, 2)
-    .join("")
-    .toLocaleUpperCase();
-  const avatarUrl = getSafeImageUrl(currentProfile?.avatar_url);
-  accountAvatarImage.hidden = !avatarUrl;
-  accountAvatarFallback.hidden = Boolean(avatarUrl);
-  if (avatarUrl) {
-    accountAvatarImage.src = avatarUrl;
-    accountAvatarImage.onerror = () => {
-      accountAvatarImage.hidden = true;
-      accountAvatarFallback.hidden = false;
-    };
-  } else {
-    accountAvatarImage.removeAttribute("src");
-  }
-}
-
-async function loadCurrentProfile() {
-  currentProfile = null;
-  accountErrorMessage = "";
-  if (!currentUser) {
-    return;
-  }
-
-  const { data, error } = await supabaseClient
-    .from("profiles")
-    .select("id, display_name, bio, avatar_url")
-    .eq("id", currentUser.id)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-  if (data) {
-    currentProfile = data;
-    return;
-  }
-
-  const metadata = currentUser.user_metadata || {};
-  const profile = {
-    id: currentUser.id,
-    display_name: typeof metadata.display_name === "string" && metadata.display_name.trim()
-      ? metadata.display_name.trim()
-      : "Traveler",
-    bio: typeof metadata.bio === "string" ? metadata.bio.trim() : "",
-    avatar_url: null,
-    created_at: new Date().toISOString(),
-  };
-  const result = await supabaseClient
-    .from("profiles")
-    .upsert(profile, { onConflict: "id" })
-    .select("id, display_name, bio, avatar_url")
-    .single();
-
-  if (result.error) {
-    throw result.error;
-  }
-  currentProfile = result.data;
-}
-
-function renderFeed() {
-  const sortedPosts = [...posts].sort((first, second) => {
-    if (first.isStarter !== second.isStarter) {
-      return first.isStarter ? 1 : -1;
-    }
-    return new Date(second.date) - new Date(first.date);
-  });
-
-  if (!sortedPosts.length) {
-    feedRoot.replaceChildren(
-      createTextElement("p", "feed-status", "No stories to show yet.")
-    );
-    restoreInspirationState();
-    return;
-  }
-
-  const cards = sortedPosts.map((post) => {
-    const comments = getPostComments(post.id);
-    const likes = getPostLikes(post.id);
-    const isLiked = Boolean(currentUser && likes.some((like) => like.user_id === currentUser.id));
-    const initials = post.author
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((name) => name[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase();
-
-    const card = document.createElement("article");
-    card.className = "post-card";
-    card.dataset.postId = post.id;
-    card.id = `post-${post.id}`;
-
-    const header = document.createElement("div");
-    header.className = "post-card__header";
-    const user = document.createElement("div");
-    user.className = "post-user";
-    const avatar = createTextElement("div", "post-user__avatar", initials);
-    avatar.setAttribute("aria-hidden", "true");
-    const names = document.createElement("div");
-    names.className = "post-user__names";
-    names.append(
-      createTextElement("span", "post-user__name", post.author),
-      createTextElement("span", "post-user__location", post.location)
-    );
-    user.append(avatar, names);
-    header.append(
-      user,
-      createTextElement("span", "post-date", formatDisplayDate(post.date))
-    );
-    card.append(header);
-
-    const media = document.createElement("div");
-    media.className = "post-card__media";
-    const image = document.createElement("img");
-    image.className = "post-card__image";
-    image.src = post.image;
-    image.alt = `${post.location || "Travel"} scene`;
-    image.loading = "lazy";
-    image.addEventListener("error", () => {
-      image.src = PLACEHOLDER_IMAGE;
-    }, { once: true });
-    media.append(image);
-    const attribution = getImageAttribution(post.image);
-    if (attribution) {
-      const credit = document.createElement("p");
-      credit.className = "post-card__image-credit";
-      credit.append(
-        document.createTextNode("Photo by "),
-        createExternalLink(attribution.authorUrl, attribution.author),
-        document.createTextNode(" - "),
-        createExternalLink(attribution.fileUrl, attribution.workTitle),
-        document.createTextNode(" on Wikimedia Commons, licensed under "),
-        createExternalLink(
-          "https://creativecommons.org/licenses/by-sa/3.0/",
-          "CC BY-SA 3.0"
-        )
-      );
-      media.append(credit);
-    }
-    card.append(media);
-
-    const actions = document.createElement("div");
-    actions.className = "post-actions";
-    const likeButton = document.createElement("button");
-    likeButton.className = `action-button${isLiked ? " is-liked" : ""}`;
-    likeButton.type = "button";
-    likeButton.dataset.likeId = post.id;
-    likeButton.setAttribute("aria-label", isLiked ? "Unlike this post" : "Like this post");
-    const likeIcon = createTextElement("span", "", isLiked ? "♥" : "♡");
-    likeIcon.setAttribute("aria-hidden", "true");
-    likeButton.append(
-      likeIcon,
-      createTextElement("span", "action-button__count", String(likes.length))
-    );
-    const commentButton = document.createElement("button");
-    commentButton.className = "action-button";
-    commentButton.type = "button";
-    commentButton.dataset.commentToggle = post.id;
-    commentButton.setAttribute("aria-label", "Comment on this post");
-    const commentIcon = createTextElement("span", "", "💬");
-    commentIcon.setAttribute("aria-hidden", "true");
-    commentButton.append(
-      commentIcon,
-      createTextElement("span", "action-button__count", String(comments.length))
-    );
-    commentButton.lastElementChild.dataset.commentCount = post.id;
-    actions.append(likeButton, commentButton);
-    card.append(actions);
-
-    const caption = document.createElement("p");
-    caption.className = "post-caption";
-    caption.textContent = post.caption;
-    card.append(caption);
-
-    const commentsPanel = document.createElement("div");
-    commentsPanel.className = "post-comments";
-    commentsPanel.dataset.commentsPanel = post.id;
-    commentsPanel.append(createTextElement("p", "post-comments__title", "Comments"));
-    const commentList = document.createElement("div");
-    commentList.className = "comment-list";
-    commentList.dataset.commentList = post.id;
-    if (comments.length) {
-      comments.forEach((comment) => {
-        const commentItem = document.createElement("div");
-        commentItem.className = "comment-item";
-        commentItem.dataset.commentId = comment.id;
-        const meta = document.createElement("div");
-        meta.className = "comment-item__meta";
-        meta.append(createTextElement("span", "comment-item__author", comment.author));
-        const tools = document.createElement("div");
-        tools.className = "comment-item__tools";
-        tools.append(createTextElement("span", "", formatDisplayDate(comment.created_at)));
-        if (currentUser && comment.user_id === currentUser.id) {
-          const deleteButton = createTextElement("button", "comment-item__delete", "Delete");
-          deleteButton.type = "button";
-          deleteButton.dataset.deleteComment = comment.id;
-          deleteButton.setAttribute("aria-label", `Delete your comment on ${post.location}`);
-          tools.append(deleteButton);
-        }
-        meta.append(tools);
-        commentItem.append(
-          meta,
-          createTextElement("p", "comment-item__text", comment.content)
-        );
-        commentList.append(commentItem);
-      });
-    } else {
-      commentList.append(
-        createTextElement("p", "comment-item__text", "No comments yet. Start the conversation.")
-      );
-    }
-    commentsPanel.append(commentList);
-
-    const commentForm = document.createElement("div");
-    commentForm.className = "comment-form";
-    const commentInput = document.createElement("input");
-    commentInput.type = "text";
-    commentInput.maxLength = 200;
-    commentInput.placeholder = "Write a comment...";
-    commentInput.dataset.commentInput = post.id;
-    commentInput.setAttribute("aria-label", `Write a comment on ${post.author}'s post`);
-    const commentSubmit = createTextElement("button", "btn btn-primary", "Post");
-    commentSubmit.type = "button";
-    commentSubmit.dataset.commentSubmit = post.id;
-    commentForm.append(commentInput, commentSubmit);
-    commentsPanel.append(commentForm);
-    card.append(commentsPanel);
-    return card;
-  });
-  feedRoot.replaceChildren(...cards);
-  restoreInspirationState();
-  if (!handledPostAnchor && window.location.hash.startsWith("#post-")) {
-    handledPostAnchor = true;
-    const postId = decodeURIComponent(window.location.hash.slice("#post-".length));
-    window.requestAnimationFrame(() => document.getElementById(`post-${postId}`)?.scrollIntoView());
-  }
-}
-
-function restoreInspirationState() {
-  if (!restoreRequested || hasRestoredInspirationState) {
-    return;
-  }
-
-  hasRestoredInspirationState = true;
-  const validState = inspirationReturnState
-    && Number.isFinite(inspirationReturnState.scrollY)
-    && inspirationReturnState.scrollY >= 0;
-
-  if (validState) {
-    const openCommentIds = Array.isArray(inspirationReturnState.openCommentIds)
-      ? inspirationReturnState.openCommentIds
-      : [];
-    openCommentIds.forEach((postId) => {
-      const panel = [...feedRoot.querySelectorAll("[data-comments-panel]")]
-        .find((element) => element.dataset.commentsPanel === String(postId));
-      panel?.classList.add("is-open");
-    });
-
-    const cards = [...feedRoot.querySelectorAll(".post-card")];
-    const anchorCard = cards.find(
-      (card) => card.dataset.postId === inspirationReturnState.postId
-    );
-    const restorePosition = () => {
-      const targetPosition = anchorCard && Number.isFinite(inspirationReturnState.postTop)
-        ? window.scrollY
-          + anchorCard.getBoundingClientRect().top
-          - inspirationReturnState.postTop
-        : inspirationReturnState.scrollY;
-      window.scrollTo({ top: targetPosition, behavior: "instant" });
-    };
-    const precedingImages = anchorCard
-      ? cards
-        .slice(0, cards.indexOf(anchorCard))
-        .flatMap((card) => [...card.querySelectorAll("img")])
-      : [];
-    precedingImages.forEach((image) => {
-      const cleanup = () => {
-        window.clearTimeout(cleanupTimer);
-        image.removeEventListener("load", reposition);
-        image.removeEventListener("error", reposition);
-      };
-      const reposition = (event) => {
-        window.requestAnimationFrame(restorePosition);
-        if (event.type === "load") {
-          cleanup();
-        }
-      };
-      const cleanupTimer = window.setTimeout(cleanup, 5000);
-      image.addEventListener("load", reposition);
-      image.addEventListener("error", reposition);
-      image.loading = "eager";
-      if (image.complete && image.naturalWidth > 0) {
-        cleanup();
-      }
-    });
-    const restoreAfterLoad = () => {
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(restorePosition);
-      });
-      window.setTimeout(restorePosition, 250);
-    };
-
-    restorePosition();
-    if (pageHasShown) {
-      restoreAfterLoad();
-    } else {
-      window.addEventListener("pageshow", restoreAfterLoad, { once: true });
-    }
-  } else {
-    window.history.scrollRestoration = "auto";
-  }
-
+// Local Storage Helpers
+function getLocalPosts() {
   try {
-    window.sessionStorage.removeItem(INSPIRATION_RETURN_KEY);
-  } catch (error) {
-    console.error("Unable to clear saved Inspirations state.", error);
-  }
-
-  const cleanUrl = new URL(window.location.href);
-  if (cleanUrl.searchParams.has("restore")) {
-    cleanUrl.searchParams.delete("restore");
-    window.history.replaceState(
-      window.history.state,
-      "",
-      `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`
-    );
+    return JSON.parse(localStorage.getItem(LOCAL_POSTS_KEY) || "[]");
+  } catch (e) {
+    return [];
   }
 }
 
-document.addEventListener("click", (event) => {
-  const target = event.target;
-  if (!(target instanceof Element)) {
-    return;
-  }
-  const link = target.closest("a[href]");
-  if (!link) {
-    return;
-  }
+function saveLocalPost(post) {
+  const existing = getLocalPosts();
+  existing.unshift(post);
+  localStorage.setItem(LOCAL_POSTS_KEY, JSON.stringify(existing));
+}
 
-  const destination = new URL(link.href, window.location.href);
-  if (
-    destination.origin !== window.location.origin
-    || !destination.pathname.endsWith("/login.html")
-  ) {
-    return;
-  }
-
-  const visibleCard = [...feedRoot.querySelectorAll(".post-card")]
-    .find((card) => card.getBoundingClientRect().bottom > 0);
-  const state = {
-    scrollY: window.scrollY,
-    postId: visibleCard?.dataset.postId || null,
-    postTop: visibleCard?.getBoundingClientRect().top ?? null,
-    openCommentIds: [...feedRoot.querySelectorAll(".post-comments.is-open")]
-      .map((panel) => panel.dataset.commentsPanel),
-  };
-
+function getLocalLikes() {
   try {
-    window.sessionStorage.setItem(INSPIRATION_RETURN_KEY, JSON.stringify(state));
-  } catch (error) {
-    console.error("Unable to save Inspirations state before opening Login.", error);
+    return JSON.parse(localStorage.getItem(LOCAL_LIKES_KEY) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+
+function setLocalLike(postId, liked) {
+  const likes = getLocalLikes();
+  if (liked) likes[postId] = true;
+  else delete likes[postId];
+  localStorage.setItem(LOCAL_LIKES_KEY, JSON.stringify(likes));
+}
+
+function getLocalComments() {
+  try {
+    return JSON.parse(localStorage.getItem(LOCAL_COMMENTS_KEY) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+
+function addLocalComment(postId, comment) {
+  const comments = getLocalComments();
+  if (!comments[postId]) comments[postId] = [];
+  comments[postId].push(comment);
+  localStorage.setItem(LOCAL_COMMENTS_KEY, JSON.stringify(comments));
+}
+
+// Lightbox
+function openLightbox(imageUrl, title, desc) {
+  if (!lightboxModal) return;
+  lightboxImage.src = imageUrl;
+  lightboxTitle.textContent = title;
+  lightboxDesc.textContent = desc;
+  lightboxModal.hidden = false;
+  lightboxModal.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeLightbox() {
+  if (!lightboxModal) return;
+  lightboxModal.hidden = true;
+  lightboxModal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+
+if (closeLightboxBtn) closeLightboxBtn.addEventListener("click", closeLightbox);
+if (lightboxBackdrop) lightboxBackdrop.addEventListener("click", closeLightbox);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && lightboxModal && !lightboxModal.hidden) {
+    closeLightbox();
   }
 });
 
-function toggleComments(postId) {
-  const panel = [...feedRoot.querySelectorAll("[data-comments-panel]")]
-    .find((element) => element.dataset.commentsPanel === String(postId));
-  panel?.classList.toggle("is-open");
-}
+// Like Action
+function handleLike(postId, button, countSpan) {
+  const story = allStories.find((s) => String(s.id) === String(postId));
+  if (!story) return;
 
-function showLoginRequired() {
-  loginRequiredMessage.hidden = false;
-}
+  const currentLiked = story.isLiked;
+  const newLiked = !currentLiked;
+  story.isLiked = newLiked;
+  story.likes = Math.max(0, (story.likes || 0) + (newLiked ? 1 : -1));
 
-async function toggleLike(postId, button) {
-  if (!currentUser) {
-    showLoginRequired();
-    return;
-  }
+  button.classList.toggle("is-liked", newLiked);
+  countSpan.textContent = String(story.likes);
+  setLocalLike(postId, newLiked);
 
-  button.disabled = true;
-  try {
-    const existingLike = getPostLikes(postId)
-      .some((like) => like.user_id === currentUser.id);
-    const result = existingLike
-      ? await supabaseClient
-        .from("post_likes")
-        .delete()
-        .eq("post_id", postId)
-        .eq("user_id", currentUser.id)
-      : await supabaseClient
-        .from("post_likes")
-        .upsert(
-          {
-            post_id: postId,
-            user_id: currentUser.id,
-            created_at: new Date().toISOString(),
-          },
-          { onConflict: "post_id,user_id", ignoreDuplicates: true }
-        );
-    if (result.error) {
-      throw result.error;
-    }
-    await loadFeed();
-  } catch (error) {
-    console.error("Unable to update post like.", error);
-    showFeedMessage(`Unable to update your like: ${error.message}`, true);
-    button.disabled = false;
-  }
-}
-
-async function addComment(postId, text, button = null) {
-  const trimmed = String(text || "").trim();
-  if (!trimmed) {
-    return false;
-  }
-  if (!currentUser) {
-    showLoginRequired();
-    return false;
-  }
-
-  if (button) {
-    button.disabled = true;
-  }
-  try {
-    const { error } = await supabaseClient
-      .from("comments")
-      .insert({
-        id: window.crypto.randomUUID(),
-        post_id: postId,
-        user_id: currentUser.id,
-        content: trimmed,
-        created_at: new Date().toISOString(),
-      });
-    if (error) {
-      throw error;
-    }
-    await loadFeed();
-    return true;
-  } catch (error) {
-    console.error("Unable to post comment.", error);
-    showFeedMessage(`Unable to post your comment: ${error.message}`, true);
-    return false;
-  } finally {
-    if (button) {
-      button.disabled = false;
-    }
-  }
-}
-
-async function deleteComment(commentId, button) {
-  if (!currentUser || deletingCommentIds.has(commentId)) return;
-  const comment = [...commentsByPost.values()]
-    .flat()
-    .find((entry) => String(entry.id) === String(commentId));
-  if (!comment || comment.user_id !== currentUser.id) return;
-
-  deletingCommentIds.add(commentId);
-  button.disabled = true;
-  const commentItem = [...feedRoot.querySelectorAll("[data-comment-id]")]
-    .find((element) => element.dataset.commentId === String(commentId));
-  commentItem?.querySelector(".comment-item__delete-status")?.remove();
-  const status = createTextElement("p", "comment-item__delete-status", "Deleting comment…");
-  status.setAttribute("role", "status");
-  status.setAttribute("aria-live", "polite");
-  commentItem?.append(status);
-
-  try {
-    const { data, error } = await supabaseClient
-      .from("comments")
-      .delete()
-      .eq("id", commentId)
-      .eq("user_id", currentUser.id)
-      .select("id");
-    if (error) throw error;
-    if (!data?.length) {
-      throw new Error("The comment was not found or is no longer yours to delete.");
-    }
-
-    const postComments = (commentsByPost.get(comment.post_id) || [])
-      .filter((entry) => String(entry.id) !== String(commentId));
-    commentsByPost.set(comment.post_id, postComments);
-    commentItem?.remove();
-    if (!postComments.length) {
-      const list = [...feedRoot.querySelectorAll("[data-comment-list]")]
-        .find((element) => element.dataset.commentList === String(comment.post_id));
-      list?.append(createTextElement(
-        "p",
-        "comment-item__text",
-        "No comments yet. Start the conversation."
-      ));
-    }
-    const count = [...feedRoot.querySelectorAll("[data-comment-count]")]
-      .find((element) => element.dataset.commentCount === String(comment.post_id));
-    if (count) count.textContent = String(postComments.length);
-  } catch (error) {
-    console.error("Unable to delete comment.", error);
-    if (status.isConnected) {
-      status.classList.add("is-error");
-      status.textContent = `Unable to delete your comment: ${error.message}`;
+  // If Supabase is connected, optionally sync
+  if (window.supabaseClient && currentUser) {
+    if (newLiked) {
+      window.supabaseClient.from("post_likes").insert({ post_id: postId, user_id: currentUser.id }).catch(() => {});
     } else {
-      showFeedMessage(`Unable to delete your comment: ${error.message}`, true);
+      window.supabaseClient.from("post_likes").delete().eq("post_id", postId).eq("user_id", currentUser.id).catch(() => {});
     }
-    button.disabled = false;
-  } finally {
-    deletingCommentIds.delete(commentId);
   }
 }
 
-function openModal(post = null) {
-  editingPostId = post ? post.id : null;
-  createPostTitle.textContent = post ? "Edit Post" : "Create Post";
-  submitPostButton.textContent = post ? "Save Changes" : "Share Post";
-  if (post) {
-    postImageInput.value = post.image_url || "";
-    document.getElementById("post-caption").value = post.caption || "";
-    document.getElementById("post-location").value = post.location || "";
-  } else {
-    createPostForm.reset();
+// Add Comment Action
+function handleAddComment(postId, input, listContainer, countSpan) {
+  const text = input.value.trim();
+  if (!text) return;
+
+  const story = allStories.find((s) => String(s.id) === String(postId));
+  const authorName = currentProfile?.display_name || (currentUser ? "You" : "Fellow Traveler");
+  const newComment = {
+    id: `comm-${Date.now()}`,
+    postId: String(postId),
+    author: authorName,
+    text,
+    date: new Date().toISOString(),
+  };
+
+  if (!story.comments) story.comments = [];
+  story.comments.push(newComment);
+  addLocalComment(postId, newComment);
+
+  const item = document.createElement("div");
+  item.className = "comment-item";
+  const author = document.createElement("span");
+  author.className = "comment-item__author";
+  author.textContent = authorName;
+  const comment = document.createElement("span");
+  comment.className = "comment-item__text";
+  comment.textContent = text;
+  item.append(author, comment);
+  listContainer.appendChild(item);
+
+  input.value = "";
+  if (countSpan) countSpan.textContent = String(story.comments.length);
+}
+
+// Card Renderer
+function createStoryCard(story) {
+  const card = document.createElement("article");
+  card.className = "post-card";
+  card.dataset.postId = story.id;
+  card.id = `story-${story.id}`;
+
+  const initials = (story.author || "T")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  const isSaved = window.tourEaseBucketlist ? window.tourEaseBucketlist.isSaved(story.id) : false;
+
+  // Format Difficulty Badge
+  const diff = story.difficulty || "Moderate";
+  const normDiff = diff.toLowerCase();
+  let diffBadgeClass = "badge--moderate";
+  let diffLabel = `🟡 ${diff}`;
+  if (normDiff.includes("easy")) {
+    diffBadgeClass = "badge--easy";
+    diffLabel = `🟢 ${diff}`;
+  } else if (normDiff.includes("hard") || normDiff.includes("difficult")) {
+    diffBadgeClass = "badge--hard";
+    diffLabel = `🔴 ${diff}`;
   }
-  postImageFileInput.value = "";
-  clearImagePreview();
-  setPostFormStatus("");
+
+  // Format Category
+  const categoryLabels = {
+    mountains: "🏔️ Mountains",
+    beach: "🏖️ Beach",
+    heritage: "🏛️ Heritage",
+    nature: "🌲 Nature",
+    roadtrip: "🎒 Road Trip",
+  };
+  const vibeLabel = categoryLabels[story.category] || "✈️ Travel";
+
+  const imageUrl = getSafeImageUrl(story.image) || PLACEHOLDER_IMAGE;
+  card.innerHTML = `
+    <div class="post-card__header">
+      <div class="post-user">
+        <div class="post-user__avatar" aria-hidden="true">${escapeHtml(initials)}</div>
+        <div class="post-user__names">
+          <span class="post-user__name">${escapeHtml(story.author)}</span>
+          <span class="post-user__location">📍 ${escapeHtml(story.location)}</span>
+        </div>
+      </div>
+      <span class="post-date">${formatDisplayDate(story.date)}</span>
+    </div>
+
+    <div class="post-card__media" title="Click to view photo full size">
+      <img class="post-card__image" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(story.location)} travel capture" loading="lazy">
+      <div class="post-card__badges">
+        <span class="post-card__vibe-badge">${vibeLabel}</span>
+        <span class="post-card__diff-badge ${diffBadgeClass}">${escapeHtml(diffLabel)}</span>
+      </div>
+      <button class="story-card__save-btn ${isSaved ? "is-saved" : ""}" type="button" aria-label="${isSaved ? "Remove from saved" : "Save story"}" title="Save story" data-save-id="${escapeHtml(story.id)}">
+        <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+      </button>
+    </div>
+
+    <div class="post-actions">
+      <button type="button" class="action-button ${story.isLiked ? "is-liked" : ""}" data-like-btn="${escapeHtml(story.id)}" aria-label="Like story">
+        <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+        <span class="like-count">${Number.isFinite(Number(story.likes)) ? Math.max(0, Math.trunc(Number(story.likes))) : 0}</span>
+      </button>
+
+      <button type="button" class="action-button" data-comment-toggle="${escapeHtml(story.id)}" aria-label="View comments">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        <span class="comment-count">${story.comments?.length || 0}</span>
+      </button>
+    </div>
+
+    <p class="post-caption">${escapeHtml(story.caption)}</p>
+
+    <div class="post-comments" data-comments-box="${escapeHtml(story.id)}">
+      <p class="post-comments__title">Comments (${story.comments?.length || 0})</p>
+      <div class="comment-list" data-comment-list="${escapeHtml(story.id)}">
+        ${(story.comments || []).map((c) => `
+          <div class="comment-item">
+            <span class="comment-item__author">${escapeHtml(c.author)}</span>
+            <span class="comment-item__text">${escapeHtml(c.text)}</span>
+          </div>
+        `).join("")}
+      </div>
+      <form class="comment-form" data-comment-form="${escapeHtml(story.id)}">
+        <input type="text" placeholder="Add a comment or ask a question..." aria-label="Comment text" required>
+        <button type="submit">Post</button>
+      </form>
+    </div>
+  `;
+
+  // Attach event handlers
+  const mediaEl = card.querySelector(".post-card__media");
+  mediaEl.addEventListener("click", (e) => {
+    if (e.target.closest(".story-card__save-btn")) return;
+    openLightbox(imageUrl, `${story.location} · by ${story.author}`, story.caption);
+  });
+
+  const saveBtn = card.querySelector(".story-card__save-btn");
+  saveBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (window.tourEaseBucketlist) {
+      window.tourEaseBucketlist.toggle({
+        id: story.id,
+        name: `${story.location} (Story)`,
+        location: story.location,
+        image: story.image,
+        category: vibeLabel,
+        difficulty: story.difficulty,
+        url: `inspiration.html#story-${story.id}`,
+        type: "story",
+      });
+    }
+  });
+
+  const likeBtn = card.querySelector("[data-like-btn]");
+  const likeCountSpan = card.querySelector(".like-count");
+  likeBtn.addEventListener("click", () => {
+    handleLike(story.id, likeBtn, likeCountSpan);
+  });
+
+  const commentForm = card.querySelector("[data-comment-form]");
+  const commentInput = commentForm.querySelector("input");
+  const commentList = card.querySelector("[data-comment-list]");
+  const commentCountSpan = card.querySelector(".comment-count");
+  commentForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    handleAddComment(story.id, commentInput, commentList, commentCountSpan);
+  });
+
+  return card;
+}
+
+// Render Feed
+function renderFeed() {
+  if (!feedRoot) return;
+
+  const q = activeFilters.search.toLowerCase();
+  const stateF = activeFilters.state.toLowerCase();
+  const catF = activeFilters.category.toLowerCase();
+  const diffF = activeFilters.difficulty.toLowerCase();
+
+  filteredStories = allStories.filter((s) => {
+    // Search
+    if (q) {
+      const haystack = `${s.caption} ${s.location} ${s.author}`.toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    // State
+    if (stateF) {
+      const loc = (s.location || "").toLowerCase();
+      if (!loc.includes(stateF)) return false;
+    }
+    // Category
+    if (catF) {
+      if ((s.category || "").toLowerCase() !== catF) return false;
+    }
+    // Difficulty
+    if (diffF) {
+      const storyDiff = (s.difficulty || "").toLowerCase();
+      if (diffF === "easy" && !storyDiff.includes("easy")) return false;
+      if (diffF === "moderate" && !storyDiff.includes("moderate")) return false;
+      if (diffF === "hard" && !storyDiff.includes("hard") && !storyDiff.includes("difficult")) return false;
+    }
+    return true;
+  });
+
+  feedRoot.innerHTML = "";
+  if (!filteredStories.length) {
+    feedRoot.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 4rem 1.5rem; color: var(--color-text-secondary);">
+        <p style="font-size: 1.25rem; font-weight: 700; color: var(--color-text); margin: 0 0 0.5rem;">No stories found matching your filters</p>
+        <p style="margin: 0 0 1.25rem;">Try choosing another state, category, or difficulty level.</p>
+        <button id="reset-feed-btn" class="btn btn-secondary" type="button">Reset All Filters</button>
+      </div>
+    `;
+    const resetBtn = document.getElementById("reset-feed-btn");
+    if (resetBtn) resetBtn.addEventListener("click", clearAllFilters);
+  } else {
+    filteredStories.forEach((story) => {
+      feedRoot.appendChild(createStoryCard(story));
+    });
+  }
+
+  // Update counter
+  if (storyCountEl) {
+    storyCountEl.textContent = `Showing ${filteredStories.length} ${filteredStories.length === 1 ? "story" : "community stories"}`;
+  }
+
+  // Update active tags
+  renderActiveTags();
+}
+
+function renderActiveTags() {
+  if (!activeTagsEl) return;
+  activeTagsEl.innerHTML = "";
+
+  if (activeFilters.search) {
+    createTagChip(`Search: "${activeFilters.search}"`, () => {
+      activeFilters.search = "";
+      if (searchInput) searchInput.value = "";
+      renderFeed();
+    });
+  }
+  if (activeFilters.state) {
+    createTagChip(`State: ${activeFilters.state}`, () => {
+      activeFilters.state = "";
+      if (stateSelect) stateSelect.value = "";
+      renderFeed();
+    });
+  }
+  if (activeFilters.category) {
+    createTagChip(`Category: ${activeFilters.category}`, () => {
+      activeFilters.category = "";
+      vibeChips.forEach((c) => c.classList.toggle("is-active", c.dataset.vibe === ""));
+      renderFeed();
+    });
+  }
+  if (activeFilters.difficulty) {
+    let diffName = activeFilters.difficulty;
+    if (diffName === "easy") diffName = "🟢 Easy";
+    else if (diffName === "moderate") diffName = "🟡 Moderate";
+    else if (diffName === "hard") diffName = "🔴 Hard";
+    createTagChip(`Difficulty: ${diffName}`, () => {
+      activeFilters.difficulty = "";
+      diffPills.forEach((p) => p.classList.toggle("is-active", p.dataset.inspDiff === ""));
+      renderFeed();
+    });
+  }
+}
+
+function createTagChip(label, onRemove) {
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "insp-tag-chip";
+  chip.append(document.createTextNode(`${label} `));
+  const closeIcon = document.createElement("span");
+  closeIcon.setAttribute("aria-hidden", "true");
+  closeIcon.textContent = "✕";
+  chip.append(closeIcon);
+  chip.addEventListener("click", onRemove);
+  activeTagsEl.appendChild(chip);
+}
+
+function clearAllFilters() {
+  activeFilters = { search: "", state: "", category: "", difficulty: "" };
+  if (searchInput) searchInput.value = "";
+  if (stateSelect) stateSelect.value = "";
+  vibeChips.forEach((c) => c.classList.toggle("is-active", c.dataset.vibe === ""));
+  diffPills.forEach((p) => p.classList.toggle("is-active", p.dataset.inspDiff === ""));
+  renderFeed();
+}
+
+// Setup Feed Filter Listeners
+function setupFilterListeners() {
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      activeFilters.search = searchInput.value.trim();
+      renderFeed();
+    });
+  }
+
+  if (stateSelect) {
+    stateSelect.addEventListener("change", () => {
+      activeFilters.state = stateSelect.value;
+      renderFeed();
+    });
+  }
+
+  vibeChips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      vibeChips.forEach((c) => c.classList.remove("is-active"));
+      chip.classList.add("is-active");
+      activeFilters.category = chip.dataset.vibe || "";
+      renderFeed();
+    });
+  });
+
+  diffPills.forEach((pill) => {
+    pill.addEventListener("click", () => {
+      diffPills.forEach((p) => p.classList.remove("is-active"));
+      pill.classList.add("is-active");
+      activeFilters.difficulty = pill.dataset.inspDiff || "";
+      renderFeed();
+    });
+  });
+
+  if (clearFiltersBtn) {
+    clearFiltersBtn.addEventListener("click", clearAllFilters);
+  }
+}
+
+// Load Stories from Supabase or Fallback to JSON
+async function loadFeed() {
+  if (storyCountEl) storyCountEl.textContent = "Loading community stories...";
+  const localLikes = getLocalLikes();
+  const localComments = getLocalComments();
+  const localPosts = getLocalPosts();
+
+  let remotePosts = [];
+
+  // Attempt Supabase fetch
+  if (window.supabaseClient) {
+    try {
+      const { data, error } = await window.supabaseClient
+        .from("posts")
+        .select("id, user_id, author_name, location, caption, image_url, created_at, is_starter")
+        .order("created_at", { ascending: false });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        remotePosts = data.map((row) => {
+          const details = inferStoryDetails(row.caption, row.location);
+          return {
+            id: String(row.id),
+            author: row.author_name || "Traveler",
+            location: row.location || "India",
+            caption: row.caption || "",
+            image: getSafeImageUrl(row.image_url) || PLACEHOLDER_IMAGE,
+            date: row.created_at,
+            category: details.category,
+            difficulty: details.difficulty,
+            likes: 15,
+            comments: [],
+            isLiked: Boolean(localLikes[String(row.id)]),
+          };
+        });
+      }
+    } catch (e) {
+      console.warn("Supabase fetch skipped, loading local & starter posts.", e);
+    }
+  }
+
+  // Fallback to starter posts if remote empty
+  if (!remotePosts.length) {
+    try {
+      const res = await fetch("data/posts.json");
+      if (res.ok) {
+        const starterData = await res.json();
+        remotePosts = starterData.map((p) => {
+          const details = inferStoryDetails(p.caption, p.location);
+          return {
+            id: String(p.id),
+            author: p.author || "Traveler",
+            location: p.location || "India",
+            caption: p.caption || "",
+            image: getSafeImageUrl(p.image) || PLACEHOLDER_IMAGE,
+            date: p.date || new Date().toISOString(),
+            category: details.category,
+            difficulty: details.difficulty,
+            likes: p.likes || 24,
+            comments: (p.comments || []).map((c) => ({
+              id: String(c.id),
+              author: c.author,
+              text: c.text,
+              date: c.date,
+            })),
+            isLiked: Boolean(localLikes[String(p.id)]),
+          };
+        });
+      }
+    } catch (err) {
+      console.warn("Unable to fetch starter posts.json", err);
+    }
+  }
+
+  // Merge with locally created posts
+  const mappedLocal = localPosts.map((p) => ({
+    ...p,
+    id: String(p.id),
+    image: getSafeImageUrl(p.image) || PLACEHOLDER_IMAGE,
+    likes: p.likes || 1,
+    comments: p.comments || [],
+    isLiked: Boolean(localLikes[String(p.id)]),
+  }));
+
+  // Merge extra local comments
+  allStories = [...mappedLocal, ...remotePosts].map((story) => {
+    const extraComments = localComments[story.id] || [];
+    return {
+      ...story,
+      comments: [...(story.comments || []), ...extraComments],
+    };
+  });
+
+  renderFeed();
+}
+
+// Modal handling
+function openModal() {
+  if (!modal) return;
   modal.classList.add("is-open");
   modal.setAttribute("aria-hidden", "false");
-  postImageInput.focus();
+  document.body.style.overflow = "hidden";
 }
 
 function closeModal() {
+  if (!modal) return;
   modal.classList.remove("is-open");
   modal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
   createPostForm.reset();
-  clearImagePreview();
-  setPostFormStatus("");
-  editingPostId = null;
-  createPostTitle.textContent = "Create Post";
+  if (postImagePreviewUrl) {
+    URL.revokeObjectURL(postImagePreviewUrl);
+    postImagePreviewUrl = null;
+  }
+  submitPostButton.disabled = false;
   submitPostButton.textContent = "Share Post";
+  if (postImagePreview) postImagePreview.hidden = true;
+  if (postFormStatus) postFormStatus.hidden = true;
 }
 
-function dismissModal() {
-  closeModal();
-  if (returnToProfile) {
-    window.location.href = "login.html";
-  }
+if (closePostModalButton) closePostModalButton.addEventListener("click", closeModal);
+if (cancelPostButton) cancelPostButton.addEventListener("click", closeModal);
+if (modal) {
+  modal.addEventListener("click", (e) => {
+    if (e.target.dataset.closeModal === "true") closeModal();
+  });
+}
+if (createButton) createButton.addEventListener("click", openModal);
+if (heroCreateBtn) heroCreateBtn.addEventListener("click", openModal);
+
+// Image File Preview
+if (postImageFileInput) {
+  postImageFileInput.addEventListener("change", () => {
+    const file = postImageFileInput.files?.[0];
+    if (file) {
+      postImageInput.value = "";
+      if (postImagePreviewUrl) URL.revokeObjectURL(postImagePreviewUrl);
+      postImagePreviewUrl = URL.createObjectURL(file);
+      postImagePreviewImage.src = postImagePreviewUrl;
+      postImagePreview.hidden = false;
+    }
+  });
 }
 
-async function handleCreatePostSubmit(event) {
-  event.preventDefault();
-  if (!currentUser) {
-    closeModal();
-    showLoginRequired();
-    return;
-  }
+const removeImgBtn = document.getElementById("remove-post-image");
+if (removeImgBtn) {
+  removeImgBtn.addEventListener("click", () => {
+    postImageFileInput.value = "";
+    if (postImagePreviewUrl) {
+      URL.revokeObjectURL(postImagePreviewUrl);
+      postImagePreviewUrl = null;
+    }
+    postImagePreview.hidden = true;
+  });
+}
 
-  const formData = new FormData(createPostForm);
-  const image = String(formData.get("image") || "").trim();
+// Form Submit: Save Story
+createPostForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const caption = document.getElementById("post-caption").value.trim();
+  const location = document.getElementById("post-location").value.trim() || "India";
+  const state = document.getElementById("post-state")?.value || "";
+  const category = document.getElementById("post-category")?.value || "mountains";
+  const difficulty = document.getElementById("post-difficulty")?.value || "Moderate";
   const imageFile = postImageFileInput.files?.[0] || null;
-  const caption = String(formData.get("caption") || "").trim();
-  const location = String(formData.get("location") || "").trim();
-  const imageInput = document.getElementById("post-image");
-  imageInput.setCustomValidity(
-    image && !getSafeImageUrl(image)
-      ? "Enter an HTTP or HTTPS image URL."
-      : ""
-  );
-  if (imageFile && !ALLOWED_IMAGE_TYPES.has(imageFile.type)) {
-    setPostFormStatus("Choose a JPEG, PNG, WebP, GIF, or AVIF image. SVG and other formats are unsupported.", true);
+  const providedImageUrl = postImageInput.value.trim();
+  let imageUrl = providedImageUrl
+    ? getSafeImageUrl(providedImageUrl)
+    : "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80";
+
+  if (!caption) {
+    postFormStatus.textContent = "Please enter a caption for your story.";
+    postFormStatus.hidden = false;
+    postFormStatus.classList.add("is-error");
     return;
   }
-  if (imageFile && imageFile.size > MAX_IMAGE_SIZE) {
-    setPostFormStatus("This image is over the 5 MB limit. Choose a smaller image.", true);
+
+  if (providedImageUrl && !imageUrl) {
+    postFormStatus.textContent = "Enter a valid HTTP or HTTPS image URL.";
+    postFormStatus.hidden = false;
+    postFormStatus.classList.add("is-error");
     return;
   }
-  if (imageFile && !await hasValidImageSignature(imageFile)) {
-    setPostFormStatus("The selected file does not match its image type. Choose a valid JPEG, PNG, WebP, GIF, or AVIF image.", true);
+
+  const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"]);
+  if (imageFile && (!allowedImageTypes.has(imageFile.type) || imageFile.size > 5 * 1024 * 1024)) {
+    postFormStatus.textContent = "Choose a JPEG, PNG, WebP, GIF, or AVIF image no larger than 5 MB.";
+    postFormStatus.hidden = false;
+    postFormStatus.classList.add("is-error");
     return;
   }
-  if (imageFile && image) {
-    setPostFormStatus("Choose an uploaded image or an image URL, not both.", true);
-    return;
-  }
-  postImageInput.required = !imageFile;
-  postImageInput.setCustomValidity(
-    image && !getSafeImageUrl(image) ? "Enter an HTTP or HTTPS image URL." : ""
-  );
-  if (!createPostForm.reportValidity() || (!imageFile && !image) || !caption) {
-    return;
-  }
-  if (!currentProfile) {
-    showFeedMessage("Your profile is not available yet. Please try again after reloading.", true);
-    return;
-  }
-  if (!window.crypto?.randomUUID) {
-    showFeedMessage("This browser cannot securely create post identifiers.", true);
+
+  if (imageFile && (!currentUser || !window.supabaseClient)) {
+    postFormStatus.textContent = "Log in to upload an image. You can still share a post with an image URL.";
+    postFormStatus.hidden = false;
+    postFormStatus.classList.add("is-error");
     return;
   }
 
   submitPostButton.disabled = true;
-  const originalButtonText = submitPostButton.textContent;
-  let uploadedImageUrl = "";
+  submitPostButton.textContent = imageFile ? "Uploading image..." : "Sharing...";
+
+  const authorName = currentProfile?.display_name || (currentUser ? "You" : "Community Traveler");
+  const fullLocation = state && !location.toLowerCase().includes(state.toLowerCase()) ? `${location}, ${state}` : location;
+
+  const newPost = {
+    id: `local-${Date.now()}`,
+    author: authorName,
+    location: fullLocation,
+    caption,
+    image: imageUrl,
+    date: new Date().toISOString(),
+    category,
+    difficulty,
+    likes: 1,
+    comments: [],
+    isUserPost: true,
+  };
+
+  let uploadedImagePath = null;
   try {
-    let imageUrl = image;
     if (imageFile) {
-      setPostFormStatus("Uploading image...");
-      submitPostButton.textContent = "Uploading image…";
-      const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif", "image/avif": "avif" })[imageFile.type];
-      const storagePath = `${currentUser.id}/${window.crypto.randomUUID()}.${extension}`;
-      const { error: uploadError } = await supabaseClient.storage.from(IMAGE_BUCKET).upload(storagePath, imageFile, {
-        contentType: imageFile.type,
-        upsert: false,
-      });
+      const extension = {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+        "image/gif": "gif",
+        "image/avif": "avif",
+      }[imageFile.type];
+      uploadedImagePath = `${currentUser.id}/${window.crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await window.supabaseClient.storage
+        .from("inspiration-images")
+        .upload(uploadedImagePath, imageFile, { contentType: imageFile.type, upsert: false });
       if (uploadError) throw uploadError;
-      imageUrl = supabaseClient.storage.from(IMAGE_BUCKET).getPublicUrl(storagePath).data.publicUrl;
-      uploadedImageUrl = imageUrl;
+      const publicUrl = window.supabaseClient.storage
+        .from("inspiration-images")
+        .getPublicUrl(uploadedImagePath).data.publicUrl;
+      imageUrl = getSafeImageUrl(publicUrl);
+      if (!imageUrl) throw new Error("The uploaded image URL could not be verified.");
     }
-    const postValues = {
-      author_name: currentProfile.display_name,
-      location: location || "A hidden corner",
-      caption,
-      image_url: imageUrl,
-      is_starter: false,
-    };
-    if (editingPostId) {
-      const { data, error } = await supabaseClient
-        .from("posts")
-        .update(postValues)
-        .eq("id", editingPostId)
-        .eq("user_id", currentUser.id)
-        .eq("is_starter", false)
-        .select("id");
-      if (error) {
-        throw error;
+
+    if (window.supabaseClient && currentUser) {
+      const { error } = await window.supabaseClient.from("posts").insert({
+        id: window.crypto.randomUUID(),
+        user_id: currentUser.id,
+        author_name: authorName,
+        location: fullLocation,
+        caption,
+        image_url: imageUrl,
+        created_at: newPost.date,
+        is_starter: false,
+      });
+      if (error) throw error;
+      await loadFeed();
+    } else {
+      newPost.image = imageUrl;
+      saveLocalPost(newPost);
+      allStories.unshift(newPost);
+      renderFeed();
+    }
+    closeModal();
+  } catch (error) {
+    if (uploadedImagePath) {
+      try {
+        await window.supabaseClient.storage.from("inspiration-images").remove([uploadedImagePath]);
+      } catch (cleanupError) {
+        console.warn("Unable to remove the image after its post failed to save.", cleanupError);
       }
-      if (!data.length) {
-        throw new Error("The post was not found or is no longer yours to edit.");
+    }
+    postFormStatus.textContent = error.message || "Your post could not be shared. Please try again.";
+    postFormStatus.hidden = false;
+    postFormStatus.classList.add("is-error");
+    submitPostButton.disabled = false;
+    submitPostButton.textContent = "Share Post";
+  }
+});
+
+// Auth / Profile Status Sync
+async function syncAuth() {
+  if (!window.supabaseClient) return;
+  try {
+    const { data: { session } } = await window.supabaseClient.auth.getSession();
+    currentUser = session?.user || null;
+
+    if (currentUser) {
+      if (loginRequiredMessage) loginRequiredMessage.hidden = true;
+      if (memberActions) memberActions.hidden = false;
+      const { data } = await window.supabaseClient
+        .from("profiles")
+        .select("display_name, avatar_url")
+        .eq("id", currentUser.id)
+        .maybeSingle();
+
+      currentProfile = data || { display_name: currentUser.user_metadata?.display_name || "Traveler" };
+      if (accountUserName) accountUserName.textContent = currentProfile.display_name;
+      if (accountAvatarFallback) {
+        accountAvatarFallback.textContent = (currentProfile.display_name || "T")[0].toUpperCase();
+      }
+      if (currentProfile.avatar_url && accountAvatarImage) {
+        accountAvatarImage.src = currentProfile.avatar_url;
+        accountAvatarImage.hidden = false;
+        if (accountAvatarFallback) accountAvatarFallback.hidden = true;
       }
     } else {
-      const { error } = await supabaseClient
-        .from("posts")
-        .insert({
-          id: window.crypto.randomUUID(),
-          user_id: currentUser.id,
-          created_at: new Date().toISOString(),
-          ...postValues,
-        });
-      if (error) {
-        throw error;
-      }
+      if (loginRequiredMessage) loginRequiredMessage.hidden = false;
+      if (memberActions) memberActions.hidden = true;
     }
-
-    closeModal();
-    if (returnToProfile) {
-      try { window.sessionStorage.setItem("tourease_profile_notice", "Post published successfully."); }
-      catch (storageError) { console.error("Unable to save the post confirmation message.", storageError); }
-      window.location.href = "login.html";
-      return;
-    }
-    await loadFeed();
-    showFeedMessage("Post published successfully.");
-  } catch (error) {
-    console.error("Unable to save post.", error);
-    if (uploadedImageUrl) {
-      try { await removeOwnedImage(uploadedImageUrl, currentUser.id); }
-      catch (cleanupError) { console.error("Unable to clean up an unlinked uploaded image.", cleanupError); }
-    }
-    setPostFormStatus(`Unable to save your post: ${error.message}`, true);
-    showFeedMessage(`Unable to save your post: ${error.message}`, true);
-  } finally {
-    submitPostButton.disabled = false;
-    submitPostButton.textContent = originalButtonText;
-    postImageInput.required = false;
+  } catch (e) {
+    console.warn("Supabase auth check error", e);
   }
 }
 
-postImageFileInput.addEventListener("change", async () => {
-  const file = postImageFileInput.files?.[0];
-  setPostFormStatus("");
-  if (file && !ALLOWED_IMAGE_TYPES.has(file.type)) {
-    postImageFileInput.value = "";
-    clearImagePreview();
-    setPostFormStatus("Choose a JPEG, PNG, WebP, GIF, or AVIF image. SVG and other formats are unsupported.", true);
-    return;
-  }
-  if (file && file.size > MAX_IMAGE_SIZE) {
-    postImageFileInput.value = "";
-    clearImagePreview();
-    setPostFormStatus("This image is over the 5 MB limit. Choose a smaller image.", true);
-    return;
-  }
-  if (file && !await hasValidImageSignature(file)) {
-    postImageFileInput.value = "";
-    clearImagePreview();
-    setPostFormStatus("The selected file does not match its image type. Choose a valid JPEG, PNG, WebP, GIF, or AVIF image.", true);
-    return;
-  }
-  if (file) {
-    postImageInput.value = "";
-    postImageInput.required = false;
-  }
-  showImagePreview(file);
+// Init
+document.addEventListener("DOMContentLoaded", () => {
+  setupFilterListeners();
+  void syncAuth();
+  void loadFeed();
 });
-
-document.getElementById("remove-post-image").addEventListener("click", () => {
-  postImageFileInput.value = "";
-  clearImagePreview();
-});
-
-postImageInput.addEventListener("input", () => {
-  if (postImageInput.value.trim()) {
-    postImageFileInput.value = "";
-    clearImagePreview();
-  }
-});
-
-async function openRequestedPostForm() {
-  if (inspirationParams.get("create") === "1") {
-    if (!currentUser) {
-      showLoginRequired();
-      return;
-    }
-    openModal();
-    return;
-  }
-
-  const requestedPostId = inspirationParams.get("editPost");
-  if (!requestedPostId) {
-    return;
-  }
-  if (!currentUser) {
-    showLoginRequired();
-    return;
-  }
-
-  const { data, error } = await supabaseClient
-    .from("posts")
-    .select("id, user_id, author_name, location, caption, image_url, created_at, is_starter")
-    .eq("id", requestedPostId)
-    .eq("user_id", currentUser.id)
-    .eq("is_starter", false)
-    .maybeSingle();
-  if (error) {
-    console.error("Unable to load the requested post.", error);
-    showFeedMessage(`Unable to load this post: ${error.message}`, true);
-    return;
-  }
-  if (!data) {
-    showFeedMessage("This post is not available for editing.", true);
-    return;
-  }
-  openModal(data);
-}
-
-async function loadFeed() {
-  const requestId = ++feedRequestId;
-  if (!posts.length) {
-    showFeedMessage("Loading stories...");
-  }
-
-  try {
-    const [postsResult, likesResult, commentsResult] = await Promise.all([
-      supabaseClient
-        .from("posts")
-        .select("id, user_id, author_name, location, caption, image_url, created_at, is_starter")
-        .order("created_at", { ascending: false }),
-      supabaseClient
-        .from("post_likes")
-        .select("post_id, user_id"),
-      supabaseClient
-        .from("comments")
-        .select("id, post_id, user_id, content, created_at")
-        .order("created_at", { ascending: true }),
-    ]);
-    if (postsResult.error) {
-      throw postsResult.error;
-    }
-    if (likesResult.error) {
-      throw likesResult.error;
-    }
-    if (commentsResult.error) {
-      throw commentsResult.error;
-    }
-
-    const commentUserIds = [...new Set((commentsResult.data || []).map((comment) => comment.user_id))];
-    let profilesByUser = new Map();
-    if (commentUserIds.length) {
-      const { data, error } = await supabaseClient
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", commentUserIds);
-      if (error) {
-        throw error;
-      }
-      profilesByUser = new Map((data || []).map((profile) => [profile.id, profile.display_name]));
-    }
-    if (requestId !== feedRequestId) {
-      return;
-    }
-
-    posts = (postsResult.data || []).map(normalizePost);
-    likesByPost = new Map();
-    (likesResult.data || []).forEach((like) => {
-      const postLikes = likesByPost.get(like.post_id) || [];
-      postLikes.push(like);
-      likesByPost.set(like.post_id, postLikes);
-    });
-    commentsByPost = new Map();
-    (commentsResult.data || []).forEach((comment) => {
-      const postComments = commentsByPost.get(comment.post_id) || [];
-      postComments.push({
-        ...comment,
-        author: profilesByUser.get(comment.user_id) || "Traveler",
-      });
-      commentsByPost.set(comment.post_id, postComments);
-    });
-    renderFeed();
-  } catch (error) {
-    console.error("Unable to load the Inspirations feed.", error);
-    if (requestId === feedRequestId) {
-      feedRoot.replaceChildren();
-      showFeedMessage(
-        `Unable to load stories: ${error.message}`,
-        true,
-        true
-      );
-    }
-  }
-}
-
-createButton.addEventListener("click", () => {
-  if (!currentUser) {
-    showLoginRequired();
-    return;
-  }
-  loginRequiredMessage.hidden = true;
-  openModal();
-});
-
-closePostModalButton.addEventListener("click", dismissModal);
-cancelPostButton.addEventListener("click", dismissModal);
-modal.addEventListener("click", (event) => {
-  if (event.target instanceof Element && event.target.dataset.closeModal === "true") {
-    dismissModal();
-  }
-});
-createPostForm.addEventListener("submit", handleCreatePostSubmit);
-
-window.addEventListener("pageshow", (event) => {
-  if (!event.persisted) {
-    return;
-  }
-  try {
-    window.sessionStorage.removeItem(INSPIRATION_RETURN_KEY);
-  } catch (error) {
-    console.error("Unable to clear saved Inspirations state.", error);
-  }
-});
-
-feedRoot.addEventListener("click", async (event) => {
-  const target = event.target;
-  if (!(target instanceof Element)) {
-    return;
-  }
-  const deleteButton = target.closest("[data-delete-comment]");
-  if (deleteButton) {
-    if (!currentUser || deleteButton.disabled) return;
-    if (window.confirm("Delete your comment?")) {
-      await deleteComment(deleteButton.dataset.deleteComment, deleteButton);
-    }
-    return;
-  }
-
-  const likeButton = target.closest("[data-like-id]");
-  if (likeButton) {
-    await toggleLike(likeButton.dataset.likeId, likeButton);
-    return;
-  }
-
-  const commentToggle = target.closest("[data-comment-toggle]");
-  if (commentToggle) {
-    toggleComments(commentToggle.dataset.commentToggle);
-    return;
-  }
-
-  const commentSubmit = target.closest("[data-comment-submit]");
-  if (commentSubmit) {
-    const postId = commentSubmit.dataset.commentSubmit;
-    const input = [...feedRoot.querySelectorAll("[data-comment-input]")]
-      .find((element) => element.dataset.commentInput === postId);
-    if (input && await addComment(postId, input.value, commentSubmit)) {
-      input.value = "";
-    }
-  }
-});
-
-feedRoot.addEventListener("keydown", async (event) => {
-  if (event.key !== "Enter" || !(event.target instanceof Element)) {
-    return;
-  }
-  const input = event.target.closest("[data-comment-input]");
-  if (input && await addComment(input.dataset.commentInput, input.value)) {
-    input.value = "";
-  }
-});
-
-supabaseClient.auth.onAuthStateChange((event, session) => {
-  if (!["SIGNED_IN", "SIGNED_OUT", "USER_UPDATED"].includes(event)) {
-    return;
-  }
-  window.setTimeout(async () => {
-    currentUser = session?.user || null;
-    try {
-      await loadCurrentProfile();
-    } catch (error) {
-      console.error("Unable to load the current profile.", error);
-      accountErrorMessage = `Unable to load your profile: ${error.message}`;
-    }
-    syncAccountActions();
-    await loadFeed();
-  }, 0);
-});
-
-async function initializeFeed() {
-  try {
-    const { data, error } = await supabaseClient.auth.getSession();
-    if (error) {
-      throw error;
-    }
-    currentUser = data.session?.user || null;
-    try {
-      await loadCurrentProfile();
-    } catch (profileError) {
-      console.error("Unable to load the current profile.", profileError);
-      accountErrorMessage = `Unable to load your profile: ${profileError.message}`;
-    }
-  } catch (error) {
-    console.error("Unable to restore the Supabase session.", error);
-    accountErrorMessage = `Unable to check your session: ${error.message}`;
-  }
-
-  syncAccountActions();
-  await loadFeed();
-  await openRequestedPostForm();
-}
-
-void initializeFeed();

@@ -7,10 +7,12 @@
   <link rel="stylesheet" href="css/global.css">
   <link rel="stylesheet" href="css/navbar.css">
   <link rel="stylesheet" href="css/home.css">
+  <link rel="stylesheet" href="css/bucketlist.css">
   <link rel="stylesheet" href="css/footer.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/main.js" defer></script>
+  <script src="js/bucketlist.js" defer></script>
   <script src="js/home.js" defer></script>
 </head>
 <body>
@@ -33,6 +35,11 @@
         <a href="destinations.html">Destinations</a>
         <a href="inspiration.html">Inspirations</a>
         <a href="index.html#about">About</a>
+        <a href="#saved" class="navbar-saved-link js-open-bucketlist" aria-label="View saved bucketlist">
+          <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+          <span>Saved</span>
+          <span class="navbar-saved-badge" hidden>0</span>
+        </a>
       </div>
     </nav>
   </header>

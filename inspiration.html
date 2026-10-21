@@ -3,14 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TourEase | Inspirations</title>
+  <title>TourEase | Travel Inspirations & Community Stories</title>
   <link rel="stylesheet" href="css/global.css">
   <link rel="stylesheet" href="css/navbar.css">
   <link rel="stylesheet" href="css/inspiration.css">
+  <link rel="stylesheet" href="css/bucketlist.css">
   <link rel="stylesheet" href="css/footer.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="js/supabase-config.js" defer></script>
   <script src="js/main.js" defer></script>
+  <script src="js/bucketlist.js" defer></script>
   <script src="js/inspiration.js" defer></script>
 </head>
 <body>
@@ -27,68 +29,156 @@
         <a href="destinations.html">Destinations</a>
         <a href="inspiration.html" aria-current="page">Inspirations</a>
         <a href="index.html#about">About</a>
+        <a href="#saved" class="navbar-saved-link js-open-bucketlist" aria-label="View saved bucketlist">
+          <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+          <span>Saved</span>
+          <span class="navbar-saved-badge" hidden>0</span>
+        </a>
       </div>
     </nav>
   </header>
 
-  <main class="inspiration-shell">
-    <section class="inspiration-feed" aria-labelledby="inspiration-feed-title">
-      <div class="container inspiration-feed__inner">
-        <aside class="inspiration-sidebar inspiration-sidebar--left" aria-label="Account actions">
-          <div class="sidebar-account-section" id="inspiration-notifications">
-            <button
-              id="notification-bell"
-              class="notification-bell"
-              type="button"
-              aria-label="Notifications"
-              aria-expanded="false"
-              aria-controls="notification-panel"
-              hidden
-            >
-              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-                <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path>
-                <path d="M10 21h4"></path>
-              </svg>
-              <span id="notification-bell-count" class="notification-count" hidden></span>
+  <main class="inspiration-main">
+    <!-- Hero Section -->
+    <section class="inspiration-hero">
+      <div class="container inspiration-hero__inner">
+        <div class="inspiration-hero__text">
+          <p class="inspiration-eyebrow">COMMUNITY STORIES</p>
+          <h1 class="inspiration-hero__title">Travel through their eyes.</h1>
+          <p class="inspiration-hero__subtitle">
+            Real journeys, hidden viewpoints, and trek stories shared by the TourEase community across India.
+          </p>
+          <div class="inspiration-hero__actions">
+            <button id="hero-create-btn" class="btn btn-primary" type="button">
+              <span>✍️ Share Your Story</span>
             </button>
-            <section id="notification-panel" class="notification-panel" aria-label="Notifications" hidden>
-              <div class="notification-panel__header">
-                <h2>Notifications</h2>
-                <button id="mark-notifications-read" class="notification-mark-read" type="button" disabled>
-                  Mark all as read
-                </button>
+            <a href="#browse-stories" class="btn btn-secondary">Explore Stories</a>
+          </div>
+        </div>
+
+        <!-- User / Community Badge Box -->
+        <div class="inspiration-hero__account-box" id="inspiration-notifications">
+          <div class="account-box-content">
+            <p id="inspiration-auth-status" class="account-error" role="status" aria-live="polite" hidden></p>
+            <div id="login-required-message" class="login-required-message">
+              <div class="account-box-badge">
+                <span class="badge-icon">🧭</span>
+                <div>
+                  <strong>Join the TourEase Circle</strong>
+                  <p>Log in to publish your travel moments and join the discussion.</p>
+                </div>
               </div>
-              <div id="notification-list" class="notification-list" aria-live="polite"></div>
-            </section>
-            <div class="sidebar-account-content">
-              <p id="inspiration-auth-status" class="account-error" role="status" aria-live="polite" hidden></p>
-              <div id="login-required-message" class="login-required-message" hidden>
-                <a class="account-action account-action--primary" href="login.html">Log In</a>
-              </div>
-              <div id="inspiration-member-actions" class="inspiration-member-actions" hidden>
+              <a class="btn btn-primary btn--full" href="login.html">Log In / Sign Up</a>
+            </div>
+
+            <div id="inspiration-member-actions" class="inspiration-member-actions" hidden>
+              <div class="user-profile-header">
                 <img id="account-avatar-image" class="account-avatar" alt="" hidden>
                 <div id="account-avatar-fallback" class="account-avatar account-avatar--fallback" aria-hidden="true"></div>
-                <p id="account-user-name" class="account-user-name"></p>
-                <a class="account-action" href="login.html">Profile</a>
-                <button id="create-post-button" class="account-action account-action--primary" type="button">Create Post</button>
+                <div class="user-profile-meta">
+                  <p id="account-user-name" class="account-user-name"></p>
+                  <span class="user-status-tag">Explorer Member</span>
+                </div>
+              </div>
+              <div class="user-profile-btns">
+                <a class="btn btn-secondary btn--sm" href="login.html">Profile</a>
+                <button id="create-post-button" class="btn btn-primary btn--sm" type="button">+ Create Post</button>
               </div>
             </div>
           </div>
-        </aside>
-
-        <div id="inspiration-feed" class="post-feed" aria-live="polite" aria-atomic="true"></div>
-
-        <aside class="inspiration-sidebar inspiration-sidebar--right" aria-label="Inspirations context">
-          <div class="inspiration-sidebar__content">
-            <p class="inspiration-eyebrow">INSPIRATIONS</p>
-            <h1 id="inspiration-feed-title" class="inspiration-title">Travel through their eyes.</h1>
-            <p class="inspiration-subtitle">Discover journeys, places, and experiences shared by the TourEase community.</p>
-          </div>
-        </aside>
+        </div>
       </div>
+    </section>
+
+    <!-- Filter & Search Controls for Inspiration Stories -->
+    <section class="inspiration-controls container" id="browse-stories" aria-label="Story search and filters">
+      <div class="inspiration-controls__inner">
+        <!-- Search Bar -->
+        <div class="inspiration-search-field">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <circle cx="10.8" cy="10.8" r="6.8"></circle>
+            <path d="m16 16 5 5"></path>
+          </svg>
+          <input id="inspiration-search" type="search" placeholder="Search stories by destination, state, keyword, or author..." autocomplete="off">
+        </div>
+
+        <div class="inspiration-filter-bar">
+          <!-- State Selector -->
+          <div class="insp-filter-group">
+            <label for="insp-state-select">Choose State:</label>
+            <select id="insp-state-select" class="insp-select">
+              <option value="">All States</option>
+              <option value="Meghalaya">Meghalaya</option>
+              <option value="Kerala">Kerala</option>
+              <option value="Ladakh">Ladakh</option>
+              <option value="Rajasthan">Rajasthan</option>
+              <option value="Kashmir">Jammu & Kashmir</option>
+              <option value="Goa">Goa</option>
+              <option value="Himachal">Himachal Pradesh</option>
+              <option value="Uttarakhand">Uttarakhand</option>
+              <option value="Karnataka">Karnataka</option>
+              <option value="Tamil Nadu">Tamil Nadu</option>
+              <option value="Gujarat">Gujarat</option>
+              <option value="Sikkim">Sikkim</option>
+            </select>
+          </div>
+
+          <!-- Category / Vibe Filter Chips -->
+          <div class="insp-filter-group">
+            <span class="insp-filter-label">Category:</span>
+            <div class="insp-vibe-chips" role="radiogroup" aria-label="Filter by story category">
+              <button type="button" class="insp-chip is-active" data-vibe="">All Vibes</button>
+              <button type="button" class="insp-chip" data-vibe="mountains">🏔️ Mountains</button>
+              <button type="button" class="insp-chip" data-vibe="beach">🏖️ Beaches</button>
+              <button type="button" class="insp-chip" data-vibe="heritage">🏛️ Heritage</button>
+              <button type="button" class="insp-chip" data-vibe="nature">🌲 Nature</button>
+              <button type="button" class="insp-chip" data-vibe="roadtrip">🎒 Road Trips</button>
+            </div>
+          </div>
+
+          <!-- Difficulty / Style Selector: Easy or Hard -->
+          <div class="insp-filter-group">
+            <span class="insp-filter-label">Difficulty / Style:</span>
+            <div class="insp-difficulty-pills" role="radiogroup" aria-label="Filter by difficulty">
+              <button type="button" class="insp-diff-pill is-active" data-insp-diff="">All</button>
+              <button type="button" class="insp-diff-pill insp-diff-pill--easy" data-insp-diff="easy" title="Relaxed & scenic escapes">🟢 Easy</button>
+              <button type="button" class="insp-diff-pill insp-diff-pill--moderate" data-insp-diff="moderate" title="Moderate pace & light trails">🟡 Moderate</button>
+              <button type="button" class="insp-diff-pill insp-diff-pill--hard" data-insp-diff="hard" title="Challenging high altitude & treks">🔴 Hard</button>
+            </div>
+          </div>
+
+          <button id="clear-inspiration-filters" class="btn btn-secondary btn--sm insp-clear-btn" type="button">
+            Clear all
+          </button>
+        </div>
+
+        <div class="inspiration-feed-meta">
+          <p id="inspiration-story-count" class="inspiration-story-count" aria-live="polite">Showing community stories...</p>
+          <div id="inspiration-active-tags" class="inspiration-active-tags"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Feed -->
+    <section class="inspiration-feed-container container">
+      <div id="inspiration-feed" class="post-feed" aria-live="polite" aria-atomic="true"></div>
     </section>
   </main>
 
+  <!-- Image Lightbox Modal for Photo Zoom -->
+  <div id="image-lightbox-modal" class="lightbox-modal" aria-hidden="true" hidden>
+    <div class="lightbox-backdrop" id="lightbox-backdrop"></div>
+    <div class="lightbox-content">
+      <button id="close-lightbox" class="lightbox-close" type="button" aria-label="Close photo preview">×</button>
+      <img id="lightbox-image" src="" alt="Enlarged photo preview">
+      <div class="lightbox-caption">
+        <strong id="lightbox-title"></strong>
+        <p id="lightbox-desc"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Post Modal -->
   <div id="create-post-modal" class="modal" aria-hidden="true">
     <div class="modal__backdrop" data-close-modal="true"></div>
     <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="create-post-title">
@@ -109,7 +199,7 @@
         <label class="field">
           <span>Or upload an image from your device</span>
           <input id="post-image-file" name="image_file" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif">
-          <span class="field__help">JPEG, PNG, WebP, GIF, or AVIF; maximum 5 MB. SVG and other formats are not supported.</span>
+          <span class="field__help">JPEG, PNG, WebP, GIF, or AVIF; maximum 5 MB.</span>
         </label>
         <div id="post-image-preview" class="post-image-preview" hidden>
           <img id="post-image-preview-image" alt="Selected image preview">
@@ -119,13 +209,56 @@
 
         <label class="field">
           <span>Caption</span>
-          <textarea id="post-caption" name="caption" rows="4" placeholder="Write something about this journey..." required></textarea>
+          <textarea id="post-caption" name="caption" rows="3" placeholder="Write about your journey, moments, and feelings..." required></textarea>
         </label>
 
-        <label class="field">
-          <span>Location</span>
-          <input id="post-location" name="location" type="text" placeholder="Where was this?" maxlength="80">
-        </label>
+        <div class="field-grid">
+          <label class="field">
+            <span>Location / Place</span>
+            <input id="post-location" name="location" type="text" placeholder="e.g. Solang Valley" maxlength="80">
+          </label>
+
+          <label class="field">
+            <span>State</span>
+            <select id="post-state" name="state">
+              <option value="Himachal">Himachal Pradesh</option>
+              <option value="Uttarakhand">Uttarakhand</option>
+              <option value="Kerala">Kerala</option>
+              <option value="Goa">Goa</option>
+              <option value="Rajasthan">Rajasthan</option>
+              <option value="Ladakh">Ladakh</option>
+              <option value="Meghalaya">Meghalaya</option>
+              <option value="Kashmir">Jammu & Kashmir</option>
+              <option value="Karnataka">Karnataka</option>
+              <option value="Tamil Nadu">Tamil Nadu</option>
+              <option value="Gujarat">Gujarat</option>
+              <option value="Sikkim">Sikkim</option>
+              <option value="India">Other / All India</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>Category</span>
+            <select id="post-category" name="category">
+              <option value="mountains">🏔️ Mountains & Treks</option>
+              <option value="beach">🏖️ Beaches & Coastal</option>
+              <option value="heritage">🏛️ Heritage & Forts</option>
+              <option value="nature">🌲 Nature & Waterfalls</option>
+              <option value="roadtrip">🎒 Road Trip & Camping</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Difficulty / Style</span>
+            <select id="post-difficulty" name="difficulty">
+              <option value="Easy">🟢 Easy & Relaxed</option>
+              <option value="Moderate">🟡 Moderate Adventure</option>
+              <option value="Hard">🔴 Hard / Challenging Trek</option>
+            </select>
+          </label>
+        </div>
 
         <div class="form-actions">
           <button id="cancel-post-form" type="button" class="btn btn-secondary">Cancel</button>
@@ -137,54 +270,54 @@
 
   <footer class="site-footer">
     <div class="site-footer__inner">
-        <div class="site-footer__main">
-          <div class="site-footer__brand">
-            <a class="site-footer__wordmark" href="index.html">TourEase</a>
-            <p class="site-footer__tagline">Discover places worth getting lost in.</p>
+      <div class="site-footer__main">
+        <div class="site-footer__brand">
+          <a class="site-footer__wordmark" href="index.html">TourEase</a>
+          <p class="site-footer__tagline">Discover places worth getting lost in.</p>
+        </div>
+        <nav class="site-footer__group" aria-label="Explore">
+          <h2 class="site-footer__heading">Explore</h2>
+          <a href="destinations.html">Destinations</a>
+          <a href="inspiration.html">Inspirations</a>
+          <a href="index.html#latest-stories-title">Stories</a>
+        </nav>
+        <nav class="site-footer__group" aria-label="Company">
+          <h2 class="site-footer__heading">Company</h2>
+          <a href="index.html#about">About</a>
+          <a href="#footer-contact">Contact</a>
+          <a href="privacy.html">Privacy Policy</a>
+        </nav>
+        <aside class="site-footer__contact" id="footer-contact" aria-labelledby="footer-contact-title">
+          <p>Have a place worth sharing? Get in touch.</p>
+          <h2 id="footer-contact-title">Connect With Us</h2>
+          <div class="site-footer__contact-links">
+            <a class="site-footer__contact-link" href="https://www.instagram.com/tourease_19/" target="_blank" rel="noopener noreferrer" aria-label="Instagram profile">
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="18" height="18" rx="5"></rect>
+                <circle cx="12" cy="12" r="4"></circle>
+                <circle cx="17.5" cy="6.5" r="0.8" fill="currentColor" stroke="none"></circle>
+              </svg>
+              <span>Instagram</span>
+            </a>
+            <a class="site-footer__contact-link" href="mailto:tourease19@gmail.com" aria-label="Email TourEase">
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                <path d="m4 7 8 6 8-6"></path>
+              </svg>
+              <span>Email</span>
+            </a>
+            <a class="site-footer__contact-link site-footer__contact-link--github" href="https://github.com/NisargHalpati/TourEase" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository">
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M12 .9a11.1 11.1 0 0 0-3.51 21.63c.56.1.76-.24.76-.54v-2.08c-3.1.68-3.76-1.31-3.76-1.31-.51-1.3-1.24-1.65-1.24-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.72 1.16 1.72 1.16 1 .1.9 1.57 2.79 1.19.1-.73.4-1.22.72-1.5-2.47-.28-5.07-1.24-5.07-5.5 0-1.22.44-2.22 1.16-3-.12-.28-.5-1.42.11-2.96 0 0 .95-.3 3.05 1.15a10.6 10.6 0 0 1 5.56 0c2.1-1.45 3.05-1.15 3.05-1.15.61 1.54.23 2.68.11 2.96.72.78 1.16 1.78 1.16 3 0 4.27-2.6 5.21-5.08 5.49.4.35.76 1.02.76 2.06v3.05c0 .3.2.65.77.54A11.1 11.1 0 0 0 12 .9Z"></path>
+              </svg>
+              <span>GitHub Repository</span>
+            </a>
           </div>
-          <nav class="site-footer__group" aria-label="Explore">
-            <h2 class="site-footer__heading">Explore</h2>
-            <a href="destinations.html">Destinations</a>
-            <a href="inspiration.html">Inspirations</a>
-            <a href="index.html#latest-stories-title">Stories</a>
-          </nav>
-          <nav class="site-footer__group" aria-label="Company">
-            <h2 class="site-footer__heading">Company</h2>
-            <a href="index.html#about">About</a>
-            <a href="#footer-contact">Contact</a>
-            <a href="privacy.html">Privacy Policy</a>
-          </nav>
-          <aside class="site-footer__contact" id="footer-contact" aria-labelledby="footer-contact-title">
-            <p>Have a place worth sharing? Get in touch.</p>
-            <h2 id="footer-contact-title">Connect With Us</h2>
-            <div class="site-footer__contact-links">
-              <a class="site-footer__contact-link" href="https://www.instagram.com/tourease_19/" target="_blank" rel="noopener noreferrer" aria-label="Instagram profile (opens in a new tab)">
-                <svg aria-hidden="true" viewBox="0 0 24 24">
-                  <rect x="3" y="3" width="18" height="18" rx="5"></rect>
-                  <circle cx="12" cy="12" r="4"></circle>
-                  <circle cx="17.5" cy="6.5" r="0.8" fill="currentColor" stroke="none"></circle>
-                </svg>
-                <span>Instagram</span>
-              </a>
-              <a class="site-footer__contact-link" href="mailto:tourease19@gmail.com" aria-label="Email TourEase at tourease19@gmail.com">
-                <svg aria-hidden="true" viewBox="0 0 24 24">
-                  <rect x="3" y="5" width="18" height="14" rx="2"></rect>
-                  <path d="m4 7 8 6 8-6"></path>
-                </svg>
-                <span>Email</span>
-              </a>
-              <a class="site-footer__contact-link site-footer__contact-link--github" href="https://github.com/NisargHalpati/TourEase" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository and source code (opens in a new tab)">
-                <svg aria-hidden="true" viewBox="0 0 24 24">
-                  <path d="M12 .9a11.1 11.1 0 0 0-3.51 21.63c.56.1.76-.24.76-.54v-2.08c-3.1.68-3.76-1.31-3.76-1.31-.51-1.3-1.24-1.65-1.24-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.72 1.16 1.72 1.16 1 .1.9 1.57 2.79 1.19.1-.73.4-1.22.72-1.5-2.47-.28-5.07-1.24-5.07-5.5 0-1.22.44-2.22 1.16-3-.12-.28-.5-1.42.11-2.96 0 0 .95-.3 3.05 1.15a10.6 10.6 0 0 1 5.56 0c2.1-1.45 3.05-1.15 3.05-1.15.61 1.54.23 2.68.11 2.96.72.78 1.16 1.78 1.16 3 0 4.27-2.6 5.21-5.08 5.49.4.35.76 1.02.76 2.06v3.05c0 .3.2.65.77.54A11.1 11.1 0 0 0 12 .9Z"></path>
-                </svg>
-                <span>GitHub Repository — View Source Code</span>
-              </a>
-            </div>
-          </aside>
-        </div>
-        <div class="site-footer__bottom">
-          <p>© 2026 TourEase. All rights reserved.</p>
-        </div>
+        </aside>
+      </div>
+      <div class="site-footer__bottom">
+        <p>© 2026 TourEase. All rights reserved.</p>
+      </div>
     </div>
   </footer>
 </body>

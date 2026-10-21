@@ -7,8 +7,10 @@
   <link rel="stylesheet" href="css/global.css">
   <link rel="stylesheet" href="css/navbar.css">
   <link rel="stylesheet" href="css/destinations.css">
+  <link rel="stylesheet" href="css/bucketlist.css">
   <link rel="stylesheet" href="css/footer.css">
   <script src="js/main.js" defer></script>
+  <script src="js/bucketlist.js" defer></script>
   <script src="js/destinations.js" defer></script>
 </head>
 <body>
@@ -31,6 +33,11 @@
         <a href="destinations.html" aria-current="page">Destinations</a>
         <a href="inspiration.html">Inspirations</a>
         <a href="index.html#about">About</a>
+        <a href="#saved" class="navbar-saved-link js-open-bucketlist" aria-label="View saved bucketlist">
+          <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+          <span>Saved</span>
+          <span class="navbar-saved-badge" hidden>0</span>
+        </a>
       </div>
     </nav>
   </header>
@@ -56,6 +63,17 @@
           </svg>
           <input id="destination-search" type="search" placeholder="Search places, states, interests..." autocomplete="off">
         </label>
+        <!-- Quick Category Chips right under search -->
+        <div class="destination-quick-chips" id="destination-category-chips" aria-label="Quick Category Filters">
+          <button type="button" class="destination-chip is-active" data-chip-category="">All Places</button>
+          <button type="button" class="destination-chip" data-chip-category="Hill Station">🏔️ Hill Stations</button>
+          <button type="button" class="destination-chip" data-chip-category="Beach">🏖️ Beaches</button>
+          <button type="button" class="destination-chip" data-chip-category="Heritage">🏛️ Heritage</button>
+          <button type="button" class="destination-chip" data-chip-category="Nature">🌲 Nature</button>
+          <button type="button" class="destination-chip" data-chip-category="Trekking">🥾 Trekking</button>
+          <button type="button" class="destination-chip" data-chip-category="Adventure">🧗 Adventure</button>
+          <button type="button" class="destination-chip" data-chip-category="Religious">🛕 Religious</button>
+        </div>
       </div>
     </section>
 
@@ -93,11 +111,44 @@
         <div id="destination-more-filters" class="destination-more-filters">
           <div id="destination-additional-filters" class="destination-filter-fields"></div>
         </div>
+
+        <!-- Quick Trip Cost Calculator in sidebar -->
+        <div class="destination-cost-calculator" id="trip-cost-calculator">
+          <div class="cost-calc__header">
+            <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+            <h3>Trip Cost Estimator</h3>
+          </div>
+          <div class="cost-calc__field">
+            <label for="calc-days">Duration: <strong id="calc-days-label">3 Days</strong></label>
+            <input type="range" id="calc-days" min="1" max="14" value="3">
+          </div>
+          <div class="cost-calc__field">
+            <label for="calc-people">Travelers: <strong id="calc-people-label">2 People</strong></label>
+            <input type="range" id="calc-people" min="1" max="8" value="2">
+          </div>
+          <div class="cost-calc__result">
+            <span>Estimated Budget (Avg)</span>
+            <strong id="calc-total-cost">₹12,000 – ₹24,000</strong>
+          </div>
+        </div>
       </aside>
 
       <div class="destination-results">
         <div class="destination-results__header">
-          <p id="destination-result-count" class="destination-result-count" aria-live="polite">Loading destinations...</p>
+          <div class="destination-results-bar">
+            <p id="destination-result-count" class="destination-result-count" aria-live="polite">Loading destinations...</p>
+            <div class="destination-sort-wrap">
+              <label for="destination-sort">Sort by:</label>
+              <select id="destination-sort" class="destination-sort-select">
+                <option value="default">Featured</option>
+                <option value="budget-low">Budget: Low to High</option>
+                <option value="budget-high">Budget: High to Low</option>
+                <option value="difficulty-easy">Difficulty: Easy first</option>
+                <option value="difficulty-hard">Difficulty: Hard first</option>
+                <option value="name-asc">Name: A to Z</option>
+              </select>
+            </div>
+          </div>
           <div id="destination-active-filters" class="destination-active-filters" aria-label="Active filters"></div>
         </div>
         <div id="destination-grid" class="destination-grid" aria-live="polite" aria-busy="true"></div>

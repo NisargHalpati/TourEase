@@ -77,8 +77,34 @@ async function loadDestination() {
       addFact(`${currency} ${formatter.format(Number(budget.min))}–${formatter.format(Number(budget.max))}`);
     }
     addFact(destination.duration);
-    addFact(destination.difficulty);
     addFact(destination.crowd ? `${destination.crowd} crowds` : "");
+
+    // Hook up Save to Bucketlist button
+    const saveBtn = document.getElementById("detail-save-btn");
+    const saveLabel = document.getElementById("detail-save-label");
+    if (saveBtn && window.tourEaseBucketlist) {
+      const updateSaveUI = () => {
+        const isSaved = window.tourEaseBucketlist.isSaved(destination.id);
+        saveBtn.classList.toggle("is-saved", isSaved);
+        if (saveLabel) saveLabel.textContent = isSaved ? "Saved in Bucketlist (Tap to Remove)" : "Save to My Bucketlist";
+      };
+      updateSaveUI();
+      saveBtn.addEventListener("click", () => {
+        window.tourEaseBucketlist.toggle({
+          id: destination.id,
+          name: destination.name,
+          location: [destination.location?.district, destination.location?.state].filter(Boolean).join(", "),
+          image: image?.url || "",
+          category: Array.isArray(destination.categories) ? destination.categories[0] : "",
+          difficulty: destination.difficulty,
+          budget: budget ? `INR ${budget.min}–${budget.max}` : "",
+          budgetEstimate: destination.budget,
+          url: `destination-detail.html?id=${encodeURIComponent(destination.id)}`,
+        });
+        updateSaveUI();
+      });
+    }
+
     detailRoot.hidden = false;
     document.title = `TourEase | ${destination.name || "Destination"}`;
   } catch (error) {
