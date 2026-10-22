@@ -62,7 +62,22 @@
             </label>
             <label>
               <span>Password</span>
-              <input id="user-password" name="password" type="password" autocomplete="current-password" minlength="6" required>
+              <span class="password-control">
+                <input id="user-password" name="password" type="password" autocomplete="current-password" minlength="6" required>
+                <button class="password-toggle" type="button" data-password-toggle="user-password" aria-label="Show password" aria-pressed="false">
+                  <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </button>
+              </span>
+            </label>
+            <label data-registration-field hidden>
+              <span>Confirm password</span>
+              <span class="password-control">
+                <input id="user-password-confirm" name="password-confirm" type="password" autocomplete="new-password" minlength="6" data-registration-input required disabled>
+                <button class="password-toggle" type="button" data-password-toggle="user-password-confirm" aria-label="Show confirm password" aria-pressed="false">
+                  <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </button>
+              </span>
+              <span id="password-mismatch" class="field-error" role="alert" hidden>Passwords do not match.</span>
             </label>
             <label data-registration-field hidden>
               <span>Bio</span>
@@ -70,7 +85,22 @@
             </label>
             <button id="auth-submit-button" type="submit" class="btn btn-primary">Log In</button>
           </form>
+          <button id="forgot-password-link" class="auth-mode-toggle forgot-password-link" type="button">Forgot password?</button>
           <button id="auth-mode-toggle" class="auth-mode-toggle" type="button">Create an account</button>
+        </div>
+
+        <div id="recovery-request-panel" class="login-panel recovery-panel" hidden>
+          <p class="login-eyebrow">Account recovery</p>
+          <h1>Reset your password.</h1>
+          <p class="login-description">Enter your account email and we’ll send you a secure reset link.</p>
+          <form id="recovery-request-form" class="login-form">
+            <label>
+              <span>Email</span>
+              <input id="recovery-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+            </label>
+            <button id="recovery-request-button" type="submit" class="btn btn-primary">Send reset link</button>
+          </form>
+          <button id="back-to-login" class="auth-mode-toggle" type="button">Back to log in</button>
         </div>
 
         <div id="profile-panel" class="profile-panel" hidden>

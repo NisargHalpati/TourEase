@@ -113,6 +113,68 @@
   font: inherit;
 }
 
+.password-control {
+  position: relative;
+  display: block;
+}
+
+.password-control input {
+  padding-right: 3.25rem;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.55rem;
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.login-form .password-toggle {
+  width: 2.25rem;
+}
+
+.password-toggle:hover {
+  background: var(--color-bg-secondary);
+  color: var(--color-text);
+}
+
+.password-toggle svg {
+  width: 1.2rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.field-error {
+  color: #9b514a;
+  font-size: var(--text-small);
+  font-weight: var(--font-weight-regular);
+}
+
+.forgot-password-link {
+  display: block;
+  margin-top: var(--space-3);
+}
+
+.recovery-panel .btn {
+  align-self: flex-start;
+}
+
+.recovery-panel > .auth-mode-toggle {
+  display: inline-block;
+}
+
 .login-form textarea {
   min-height: 7rem;
   resize: vertical;

@@ -16,6 +16,14 @@ const authSubmitButton = document.getElementById("auth-submit-button");
 const authModeToggle = document.getElementById("auth-mode-toggle");
 const passwordInput = document.getElementById("user-password");
 const registrationFields = [...loginForm.querySelectorAll("[data-registration-field]")];
+const passwordConfirmInput = document.getElementById("user-password-confirm");
+const passwordMismatch = document.getElementById("password-mismatch");
+const forgotPasswordLink = document.getElementById("forgot-password-link");
+const recoveryRequestPanel = document.getElementById("recovery-request-panel");
+const recoveryRequestForm = document.getElementById("recovery-request-form");
+const recoveryEmailInput = document.getElementById("recovery-email");
+const recoveryRequestButton = document.getElementById("recovery-request-button");
+const backToLoginButton = document.getElementById("back-to-login");
 const backToInspirationsLink = document.querySelector(".login-back-link");
 let authMode = "login";
 let currentUser = null;
@@ -77,7 +85,10 @@ function setAuthMode(mode) {
     field.hidden = !isRegistration;
     const input = field.querySelector("input, textarea");
     input.required = isRegistration;
+    input.disabled = !isRegistration;
   });
+  forgotPasswordLink.hidden = isRegistration;
+  passwordMismatch.hidden = true;
   passwordInput.autocomplete = isRegistration ? "new-password" : "current-password";
   authSubmitButton.textContent = isRegistration ? "Create Account" : "Log In";
   authModeToggle.textContent = isRegistration
@@ -85,6 +96,28 @@ function setAuthMode(mode) {
     : "Create an account";
   setAuthStatus("");
 }
+
+document.querySelectorAll("[data-password-toggle]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const input = document.getElementById(button.dataset.passwordToggle);
+    const isVisible = input.type === "text";
+    input.type = isVisible ? "password" : "text";
+    button.setAttribute("aria-pressed", String(!isVisible));
+    const fieldName = input.id === "user-password-confirm" ? "confirm password" : "password";
+    button.setAttribute("aria-label", `${isVisible ? "Show" : "Hide"} ${fieldName}`);
+  });
+});
+
+passwordConfirmInput.addEventListener("input", () => {
+  if (passwordConfirmInput.value === passwordInput.value) {
+    passwordMismatch.hidden = true;
+  }
+});
+passwordInput.addEventListener("input", () => {
+  if (passwordConfirmInput.value === passwordInput.value) {
+    passwordMismatch.hidden = true;
+  }
+});
 
 function getDisplayName(user, profile = null) {
   const metadataName = user.user_metadata?.display_name;
@@ -260,9 +293,48 @@ function showLoginForm() {
   currentUser = null;
   profilePanel.hidden = true;
   loginPanel.hidden = false;
+  recoveryRequestPanel.hidden = true;
   setAuthStatus("");
   setAuthMode("login");
 }
+
+forgotPasswordLink.addEventListener("click", () => {
+  loginPanel.hidden = true;
+  recoveryRequestPanel.hidden = false;
+  recoveryEmailInput.value = document.getElementById("user-email").value.trim();
+  setAuthStatus("");
+  recoveryEmailInput.focus();
+});
+
+backToLoginButton.addEventListener("click", () => {
+  recoveryRequestPanel.hidden = true;
+  loginPanel.hidden = false;
+  setAuthStatus("");
+  document.getElementById("user-email").focus();
+});
+
+recoveryRequestForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!recoveryRequestForm.reportValidity()) return;
+  recoveryRequestButton.disabled = true;
+  backToLoginButton.disabled = true;
+  setAuthStatus("Sending your reset link...");
+  try {
+    const redirectTo = new URL("password-reset.html", window.location.href).href;
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(
+      recoveryEmailInput.value.trim().toLowerCase(),
+      { redirectTo }
+    );
+    if (error) throw error;
+    setAuthStatus("If an account uses that email address, a password reset link is on its way. Check your inbox and spam or junk folder.");
+  } catch (error) {
+    console.error("Password reset request failed.", error);
+    setAuthStatus("We couldn’t send a reset link right now. Please try again later.", true);
+  } finally {
+    recoveryRequestButton.disabled = false;
+    backToLoginButton.disabled = false;
+  }
+});
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -273,6 +345,13 @@ loginForm.addEventListener("submit", async (event) => {
   const formData = new FormData(loginForm);
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
+  const passwordConfirmation = String(formData.get("password-confirm") || "");
+  if (authMode === "register" && password !== passwordConfirmation) {
+    passwordMismatch.hidden = false;
+    passwordConfirmInput.focus();
+    return;
+  }
+  passwordMismatch.hidden = true;
   authSubmitButton.disabled = true;
   authModeToggle.disabled = true;
   setAuthStatus(authMode === "register" ? "Creating your account..." : "Signing in...");
@@ -436,6 +515,14 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
 });
 
 async function initializeLoginPage() {
+  if (new URLSearchParams(window.location.search).get("recover") === "1") {
+    clearAuthCallbackUrl();
+    showLoginForm();
+    loginPanel.hidden = true;
+    recoveryRequestPanel.hidden = false;
+    recoveryEmailInput.focus();
+    return;
+  }
   const callbackMessage = getConfirmationCallbackMessage();
   try {
     const { data, error } = await supabaseClient.auth.getSession();
