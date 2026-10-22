@@ -84,6 +84,22 @@
                 <a class="btn btn-secondary btn--sm" href="login.html">Profile</a>
                 <button id="create-post-button" class="btn btn-primary btn--sm" type="button">+ Create Post</button>
               </div>
+              <div class="notifications">
+                <button id="notifications-toggle" class="notifications-toggle" type="button" aria-expanded="false" aria-controls="notifications-panel" aria-label="Notifications">
+                  <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path><path d="M10 21h4"></path></svg>
+                  <span>Notifications</span>
+                  <span id="notifications-unread-count" class="notifications-unread-count" hidden>0</span>
+                </button>
+                <section id="notifications-panel" class="notifications-panel" aria-label="Recent notifications" hidden>
+                  <div class="notifications-panel__header">
+                    <h2>Notifications</h2>
+                    <button id="notifications-mark-all" class="notifications-mark-all" type="button" hidden>Mark all read</button>
+                  </div>
+                  <p id="notifications-status" class="notifications-status" role="status" aria-live="polite">Loading notifications…</p>
+                  <div id="notifications-list" class="notifications-list"></div>
+                  <p id="notifications-message" class="notifications-message" role="status" aria-live="polite" hidden></p>
+                </section>
+              </div>
             </div>
           </div>
         </div>
