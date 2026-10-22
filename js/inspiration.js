@@ -1,6 +1,6 @@
 /**
  * TourEase Inspiration & Community Stories Module
- * Full feed with reliable fallback, State/Category/Difficulty filtering, Lightbox, Bucketlist save, and local persistence.
+ * Full feed with reliable fallback, State/Category/Difficulty filtering, Lightbox, and local persistence.
  */
 
 const INSPIRATION_RETURN_KEY = "tourease_inspiration_return";
@@ -649,8 +649,6 @@ function createStoryCard(story) {
     .join("")
     .toUpperCase();
 
-  const isSaved = window.tourEaseBucketlist ? window.tourEaseBucketlist.isSaved(story.id) : false;
-
   // Format Difficulty Badge
   const diff = story.difficulty || "Moderate";
   const normDiff = diff.toLowerCase();
@@ -693,9 +691,6 @@ function createStoryCard(story) {
         <span class="post-card__vibe-badge">${vibeLabel}</span>
         <span class="post-card__diff-badge ${diffBadgeClass}">${escapeHtml(diffLabel)}</span>
       </div>
-      <button class="story-card__save-btn ${isSaved ? "is-saved" : ""}" type="button" aria-label="${isSaved ? "Remove from saved" : "Save story"}" title="Save story" data-save-id="${escapeHtml(story.id)}">
-        <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
-      </button>
     </div>
 
     <div class="post-actions">
@@ -732,25 +727,7 @@ function createStoryCard(story) {
   // Attach event handlers
   const mediaEl = card.querySelector(".post-card__media");
   mediaEl.addEventListener("click", (e) => {
-    if (e.target.closest(".story-card__save-btn")) return;
     openLightbox(imageUrl, `${story.location} · by ${story.author}`, story.caption);
-  });
-
-  const saveBtn = card.querySelector(".story-card__save-btn");
-  saveBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    if (window.tourEaseBucketlist) {
-      window.tourEaseBucketlist.toggle({
-        id: story.id,
-        name: `${story.location} (Story)`,
-        location: story.location,
-        image: story.image,
-        category: vibeLabel,
-        difficulty: story.difficulty,
-        url: `inspiration.html#story-${story.id}`,
-        type: "story",
-      });
-    }
   });
 
   const likeBtn = card.querySelector("[data-like-btn]");
@@ -1042,8 +1019,32 @@ async function loadFeed() {
 }
 
 // Modal handling
-function openModal() {
+let editingStory = null;
+const postTitle = document.getElementById("create-post-title");
+const postEyebrow = modal?.querySelector(".inspiration-eyebrow");
+const postStateField = document.getElementById("post-state")?.closest(".field");
+const postCategoryField = document.getElementById("post-category")?.closest(".field");
+const postDifficultyField = document.getElementById("post-difficulty")?.closest(".field");
+
+function openModal(story = null) {
   if (!modal) return;
+  editingStory = story;
+  createPostForm.reset();
+  if (postFormStatus) {
+    postFormStatus.hidden = true;
+    postFormStatus.classList.remove("is-error");
+  }
+  if (postTitle) postTitle.textContent = story ? "Edit Post" : "Create Post";
+  if (postEyebrow) postEyebrow.textContent = story ? "Update your moment" : "Share a moment";
+  submitPostButton.textContent = story ? "Save Changes" : "Share Post";
+  [postStateField, postCategoryField, postDifficultyField].forEach((field) => {
+    if (field) field.hidden = Boolean(story);
+  });
+  if (story) {
+    document.getElementById("post-caption").value = story.caption || "";
+    document.getElementById("post-location").value = story.location || "";
+    postImageInput.value = story.image || "";
+  }
   modal.classList.add("is-open");
   modal.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
@@ -1055,6 +1056,13 @@ function closeModal() {
   modal.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
   createPostForm.reset();
+  editingStory = null;
+  if (postTitle) postTitle.textContent = "Create Post";
+  if (postEyebrow) postEyebrow.textContent = "Share a moment";
+  submitPostButton.textContent = "Share Post";
+  [postStateField, postCategoryField, postDifficultyField].forEach((field) => {
+    if (field) field.hidden = false;
+  });
   if (postImagePreviewUrl) {
     URL.revokeObjectURL(postImagePreviewUrl);
     postImagePreviewUrl = null;
@@ -1072,8 +1080,8 @@ if (modal) {
     if (e.target.dataset.closeModal === "true") closeModal();
   });
 }
-if (createButton) createButton.addEventListener("click", openModal);
-if (heroCreateBtn) heroCreateBtn.addEventListener("click", openModal);
+if (createButton) createButton.addEventListener("click", () => openModal());
+if (heroCreateBtn) heroCreateBtn.addEventListener("click", () => openModal());
 
 // Image File Preview
 if (postImageFileInput) {
@@ -1092,6 +1100,7 @@ if (postImageFileInput) {
 const removeImgBtn = document.getElementById("remove-post-image");
 if (removeImgBtn) {
   removeImgBtn.addEventListener("click", () => {
+    postImageInput.value = "";
     postImageFileInput.value = "";
     if (postImagePreviewUrl) {
       URL.revokeObjectURL(postImagePreviewUrl);
@@ -1105,7 +1114,7 @@ if (removeImgBtn) {
 createPostForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const caption = document.getElementById("post-caption").value.trim();
-  const location = document.getElementById("post-location").value.trim() || "India";
+  const location = document.getElementById("post-location").value.trim() || (editingStory ? "" : "India");
   const state = document.getElementById("post-state")?.value || "";
   const category = document.getElementById("post-category")?.value || "mountains";
   const difficulty = document.getElementById("post-difficulty")?.value || "Moderate";
@@ -1113,10 +1122,18 @@ createPostForm.addEventListener("submit", async (e) => {
   const providedImageUrl = postImageInput.value.trim();
   let imageUrl = providedImageUrl
     ? getSafeImageUrl(providedImageUrl)
-    : "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80";
+    : (editingStory ? "" : "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80");
 
   if (!caption) {
     postFormStatus.textContent = "Please enter a caption for your story.";
+    postFormStatus.hidden = false;
+    postFormStatus.classList.add("is-error");
+    return;
+  }
+
+  if (editingStory && (!location || !currentUser || !window.supabaseClient
+    || editingStory.isStarter || !editingStory.isRemote || editingStory.userId !== currentUser.id)) {
+    postFormStatus.textContent = "Only the author can edit this post, and starter posts cannot be edited.";
     postFormStatus.hidden = false;
     postFormStatus.classList.add("is-error");
     return;
@@ -1145,10 +1162,11 @@ createPostForm.addEventListener("submit", async (e) => {
   }
 
   submitPostButton.disabled = true;
-  submitPostButton.textContent = imageFile ? "Uploading image..." : "Sharing...";
+  submitPostButton.textContent = imageFile ? "Uploading image..." : (editingStory ? "Saving..." : "Sharing...");
 
   const authorName = currentProfile?.display_name || (currentUser ? "You" : "Community Traveler");
-  const fullLocation = state && !location.toLowerCase().includes(state.toLowerCase()) ? `${location}, ${state}` : location;
+  const wasEditing = Boolean(editingStory);
+  const fullLocation = wasEditing ? location : (state && !location.toLowerCase().includes(state.toLowerCase()) ? `${location}, ${state}` : location);
 
   const newPost = {
     id: `local-${Date.now()}`,
@@ -1186,7 +1204,31 @@ createPostForm.addEventListener("submit", async (e) => {
       if (!imageUrl) throw new Error("The uploaded image URL could not be verified.");
     }
 
-    if (window.supabaseClient && currentUser) {
+    if (wasEditing) {
+      const targetStory = editingStory;
+      const { data, error } = await window.supabaseClient.from("posts")
+        .update({ caption, location: fullLocation, image_url: imageUrl })
+        .eq("id", targetStory.id)
+        .eq("user_id", currentUser.id)
+        .eq("is_starter", false)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("This post could not be updated. It may have been removed or you may not have permission to edit it.");
+      targetStory.caption = caption;
+      targetStory.location = fullLocation;
+      targetStory.image = imageUrl;
+      const details = inferStoryDetails(caption, fullLocation);
+      targetStory.category = details.category;
+      targetStory.difficulty = details.difficulty;
+      renderFeed();
+      postFormStatus.textContent = "Your post was updated.";
+      postFormStatus.hidden = false;
+      postFormStatus.classList.remove("is-error");
+      submitPostButton.disabled = false;
+      submitPostButton.textContent = "Save Changes";
+      return;
+    } else if (window.supabaseClient && currentUser) {
       const { error } = await window.supabaseClient.from("posts").insert({
         id: window.crypto.randomUUID(),
         user_id: currentUser.id,
@@ -1214,11 +1256,11 @@ createPostForm.addEventListener("submit", async (e) => {
         console.warn("Unable to remove the image after its post failed to save.", cleanupError);
       }
     }
-    postFormStatus.textContent = error.message || "Your post could not be shared. Please try again.";
+    postFormStatus.textContent = error.message || (wasEditing ? "Your post could not be updated. Please try again." : "Your post could not be shared. Please try again.");
     postFormStatus.hidden = false;
     postFormStatus.classList.add("is-error");
     submitPostButton.disabled = false;
-    submitPostButton.textContent = "Share Post";
+    submitPostButton.textContent = wasEditing ? "Save Changes" : "Share Post";
   }
 });
 
@@ -1273,6 +1315,22 @@ document.addEventListener("DOMContentLoaded", () => {
   void (async () => {
     await syncAuth();
     await loadFeed();
+    const params = new URLSearchParams(window.location.search);
+    const editPostId = params.get("editPost");
+    if (editPostId) {
+      params.delete("editPost");
+      const query = params.toString();
+      history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+      const story = allStories.find((item) => String(item.id) === editPostId);
+      if (!currentUser) {
+        showSocialMessage("Log in as the post author to edit this post.", true);
+      } else if (!story || !story.isRemote || story.isStarter || story.userId !== currentUser.id) {
+        showSocialMessage("This post can only be edited by its author. Starter posts cannot be edited.", true);
+      } else {
+        openModal(story);
+        document.getElementById("post-caption")?.focus();
+      }
+    }
   })();
 });
 

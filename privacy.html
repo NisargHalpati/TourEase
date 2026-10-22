@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Learn how TourEase handles browser-stored profile and travel inspiration data.">
+  <meta name="description" content="Learn what information TourEase handles, how it is used, and the choices available to you.">
   <title>TourEase | Privacy Policy</title>
   <link rel="stylesheet" href="css/global.css">
   <link rel="stylesheet" href="css/navbar.css">
@@ -47,51 +47,76 @@
       <p class="privacy-policy__eyebrow">Your information</p>
       <h1 id="privacy-title">Privacy Policy</h1>
       <p class="privacy-policy__intro">
-        TourEase is a static travel-discovery website. Account and community features use the TourEase Supabase project configured for this site.
+        TourEase is a student-developed travel discovery and community website. This policy describes the data practices visible in the current website code and included database scripts. The deployed Supabase project may have settings that are not present in this repository; those items are identified below for confirmation.
       </p>
+      <p><strong>Last updated:</strong> <time datetime="2026-10-22">October 22, 2026</time></p>
 
-      <section aria-labelledby="privacy-data-title">
-        <h2 id="privacy-data-title">Information and browser storage</h2>
-        <p>
-          If you register, Supabase Authentication processes your email address and password. Your display name and bio, posts, likes, and comments are stored in the configured Supabase database and shared according to its Row Level Security policies. Passwords are handled by Supabase Authentication and are not stored by TourEase browser code. Starter stories are project-provided content. Destination content is provided by project data files.
-        </p>
-        <p>
-          The Supabase client keeps an authentication session in browser storage so you can remain signed in. Anyone using the same browser profile may be able to access the signed-in account until you log out.
-        </p>
+      <section aria-labelledby="privacy-collect-title">
+        <h2 id="privacy-collect-title">Information you provide or create</h2>
+        <p>When you create an account, you provide an email address, password, display name, and optional biography. Supabase Auth handles sign-up, sign-in, email confirmation, and password recovery. The site creates a profile record with your account ID, display name, biography, and an optional avatar URL field. The current profile screen does not offer profile editing or avatar upload.</p>
+        <p>If you publish an inspiration post, the site stores its author name, location, caption, image URL, and creation time in the Supabase posts table. You may provide an image URL or upload an image. Likes and comments are associated with posts; comments include the text, author/account reference, and creation time supported by the existing table. The website also has starter posts and locally stored fallback content.</p>
+        <p>When a like or comment creates an in-app notification, the included SQL migration stores the recipient and actor account IDs, actor display name and optional avatar URL, post ID, notification type, creation time, and read time. Comment notifications may also store the comment ID and a preview of up to 180 characters. That migration applies only if it has been run in the deployed Supabase project.</p>
+        <p>Destination saves, the chosen starting point, and travel mode are kept in this browser’s local storage. The site calculates estimated route distance and budget in the browser; its route calculation does not send the selected route to a routing service. If you use the location button, the browser asks for geolocation permission and the selected coordinates are saved as the starting point in local storage.</p>
       </section>
 
-      <section aria-labelledby="privacy-session-title">
-        <h2 id="privacy-session-title">Cookies and session data</h2>
-        <p>
-          The project code does not integrate analytics. Supabase Authentication may use browser storage for your session. TourEase also uses session storage temporarily to restore Inspirations page state during navigation. Browser storage behavior and retention are controlled in part by your browser.
-        </p>
+      <section aria-labelledby="privacy-use-title">
+        <h2 id="privacy-use-title">How information is used</h2>
+        <p>The site uses account information to create and maintain an account, authenticate you, and support password recovery. It uses profile and post information to show community content, and uses likes, comments, and notification records to provide those features. Browser storage supports the destination bucket list, travel settings, and fallback community state on that device.</p>
+        <p>The project code contains no analytics or advertising integration, and no user profiling for advertising was found. Supabase, the content delivery network, image hosts, and the website host may process technical request information as part of delivering their services; TourEase does not control their independent practices.</p>
       </section>
 
-      <section aria-labelledby="privacy-third-party-title">
-        <h2 id="privacy-third-party-title">External content and links</h2>
-        <p>
-          The Supabase JavaScript client is loaded from jsDelivr. Some travel images are loaded from external image hosts, and a post can display an image URL entered by a visitor. Loading these resources may reveal technical request information to their hosts. Links to Instagram and GitHub take you to those services, which operate under their own privacy policies.
-        </p>
+      <section aria-labelledby="privacy-browser-title">
+        <h2 id="privacy-browser-title">Browser storage, cookies, and technical requests</h2>
+        <p>The Supabase client is initialized with its standard browser session persistence; the site does not configure a separate session-storage adapter. The client may therefore keep the authentication session in browser storage so you remain signed in. Log out on shared devices, and remember that anyone with access to your browser profile may be able to use an active session. TourEase also uses session storage for short-lived navigation and password-recovery state.</p>
+        <p>Destination saves and travel settings use local storage keys in your browser, as do local fallback posts, likes, and comments. These values are not uploaded to the TourEase database by the bucket-list planner. We found no analytics package, advertising pixel, or site-authored tracking-cookie code in the repository. Your browser and the external services contacted by the site may still process technical request data; their exact logging and cookie practices are outside the website code.</p>
+      </section>
+
+      <section aria-labelledby="privacy-visibility-title">
+        <h2 id="privacy-visibility-title">What other people can see</h2>
+        <p>The Inspirations feed is built to show posts to visitors without requiring sign-in. Names shown with posts and comments, post locations, captions, images, comment text, and like counts should therefore be treated as public. Do not include passwords, private contact details, or other sensitive information in a post or comment. Your account email is shown in your own signed-in profile screen; it is not displayed in the public post card by the website code.</p>
+        <p>The included image-storage SQL makes the <code>inspiration-images</code> bucket publicly readable if that script is applied. Its upload and delete policies restrict those actions to an authenticated user’s own storage path. A public image URL can be opened by anyone who has it.</p>
+        <p>The repository includes row-level security rules for notifications only: users can read their own notification rows and update their read status. It does not include the deployed policies or full schema for posts, profiles, likes, or comments, so their exact database visibility and access controls cannot be confirmed from this project. The site’s public-feed behavior is not proof of the database’s complete access rules. The site owner should verify those live policies and the bucket setting.</p>
+        <p>Notifications are intended for the recipient’s account under the included policy. Destination bucket-list items, route choices, and estimates are stored in local browser storage rather than in a TourEase account table. Anyone with access to the same browser profile or device may be able to see or change that browser data.</p>
+      </section>
+
+      <section aria-labelledby="privacy-services-title">
+        <h2 id="privacy-services-title">Supabase and other services</h2>
+        <p>TourEase uses Supabase for authentication, database requests, and inspiration-image storage. The browser loads the Supabase JavaScript client from <a href="https://www.jsdelivr.com/terms/privacy-policy">jsDelivr</a>. The project also loads some starter and destination images from Unsplash and Wikimedia-hosted URLs, and a post may link to an image on another host. When your browser requests these resources, those services receive the request and may process technical information under their own policies.</p>
+        <p>The site links to Instagram and GitHub. Opening those links takes you to their services and their privacy terms: <a href="https://privacycenter.instagram.com/policies/dpf/version/7047067902038207/" target="_blank" rel="noopener noreferrer">Instagram Privacy Policy</a> and <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener noreferrer">GitHub Privacy Statement</a>. For Supabase, see its <a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>; for Unsplash, see its <a href="https://unsplash.com/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>; for Wikimedia-hosted images, see the <a href="https://foundation.wikimedia.org/wiki/Policy%3APrivacy_policy/en" target="_blank" rel="noopener noreferrer">Wikimedia Foundation Privacy Policy</a>. These documents describe those providers’ practices, not additional TourEase features.</p>
+        <p>The repository does not identify the email delivery provider configured for Supabase Auth, the hosting provider’s log practices, or the deployed Supabase project’s data region and retention settings. The site owner should confirm these details before making more specific statements.</p>
+      </section>
+
+      <section aria-labelledby="privacy-security-title">
+        <h2 id="privacy-security-title">Passwords and account security</h2>
+        <p>Passwords entered for sign-up or sign-in are sent to Supabase Auth, and password reset is handled through Supabase’s recovery flow. TourEase’s application tables do not store a plaintext password. The site cannot display or retrieve your password; use “Forgot password?” on the login page to request a reset email.</p>
+        <p>The site uses a Supabase publishable key in its browser code. It is intended for public client use and is not an administrator secret. Database and storage access must be protected by the deployed Supabase policies. Keep your password private and log out on a shared device. The repository does not establish the project’s full security configuration or incident-response process.</p>
+      </section>
+
+      <section aria-labelledby="privacy-choices-title">
+        <h2 id="privacy-choices-title">Your choices and deletion requests</h2>
+        <p>You can delete your own inspiration posts from your profile. The site attempts to remove an uploaded image belonging to you when its post is deleted, but reports if image cleanup fails. You can add or remove destinations and clear the browser’s destination list, and you can mark your own notifications as read. The current site does not provide a self-service account deletion, profile editing, or comment deletion control.</p>
+        <p>To request account deletion, correction, or help with information associated with your account, email <a href="mailto:tourease19@gmail.com">tourease19@gmail.com</a> from your account email and describe the request. Account deletion requires action by the site operator in Supabase; the operator must also check associated profiles, posts, likes, comments, notifications, and uploaded images. The repository does not define all foreign keys or account-deletion behavior, so it cannot guarantee which related rows are automatically removed. The notification migration specifies that deleting a recipient account cascades its notification rows, deleting an actor account clears the actor reference, and deleting a post clears the notification’s post reference. It does not remove storage objects automatically.</p>
       </section>
 
       <section aria-labelledby="privacy-retention-title">
-        <h2 id="privacy-retention-title">Retention, deletion, and security</h2>
-        <p>
-          Account and community content remains in Supabase until removed through the available site features or database administration. Logging out ends the browser session but does not delete your profile or posts. Deleting a post depends on the database relationships and Row Level Security policies configured for the project.
-        </p>
-        <p>
-          Profile and community data saved by an earlier browser-only version is not imported into Supabase and may remain in that browser’s local storage until cleared through the browser’s site-data settings.
-        </p>
-        <p>
-          Public feed content can be read by visitors. Avoid sharing sensitive information in public profiles, posts, or comments. Supabase Row Level Security policies control which account data can be changed.
-        </p>
+        <h2 id="privacy-retention-title">Retention</h2>
+        <p>No formal retention schedule is documented in this project. Supabase account and community data may remain until the account operator or an available feature removes it, subject to the deployed database configuration and provider backups. Deleting a post removes its post row when permitted; its related comments, likes, notifications, and image may have separate deletion behavior. Image cleanup after post deletion is attempted by the site but is not guaranteed if storage removal fails.</p>
+        <p>Bucket-list entries, starting-point choices, travel modes, and local fallback posts, likes, or comments remain in browser storage until removed by the site feature or cleared in browser settings. Session-only navigation and password-recovery markers are stored in session storage. Browser storage is device- and browser-specific and is not automatically cleared by logging out.</p>
+      </section>
+
+      <section aria-labelledby="privacy-children-title">
+        <h2 id="privacy-children-title">Children’s privacy</h2>
+        <p>The sign-up form does not ask for age, and this repository does not state an age limit. The site owner needs to decide what age policy applies and whether additional safeguards are needed before inviting children to use the community features. Do not submit a child’s personal information without the appropriate permission.</p>
       </section>
 
       <section aria-labelledby="privacy-contact-title">
-        <h2 id="privacy-contact-title">Privacy questions</h2>
-        <p>
-          For privacy-related questions, email us using the contact link in the “Connect With Us” section in the footer.
-        </p>
+        <h2 id="privacy-contact-title">Privacy questions or complaints</h2>
+        <p>For questions, correction requests, or account-deletion requests, email <a href="mailto:tourease19@gmail.com">tourease19@gmail.com</a>. The email address and message you send will be used to respond to your request. Include the account email and enough detail to identify the information concerned; do not email your password. TourEase will review the request and may need to verify account ownership before acting. You may also use the existing <a href="https://www.instagram.com/tourease_19/" target="_blank" rel="noopener noreferrer">TourEase Instagram contact</a>.</p>
+      </section>
+
+      <section aria-labelledby="privacy-changes-title">
+        <h2 id="privacy-changes-title">Policy changes</h2>
+        <p>TourEase may update this page as the website changes. The date above identifies the latest revision. The project does not currently contain a dedicated mechanism for notifying users about privacy-policy changes, so check this page for the current version.</p>
       </section>
     </article>
   </main>

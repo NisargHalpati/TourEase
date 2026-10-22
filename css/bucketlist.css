@@ -403,6 +403,40 @@
 }
 
 /* Bucketlist Item Card */
+.bucketlist-route {
+  margin-bottom: 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--color-border, #e1e4df);
+  border-radius: 0.85rem;
+  background: var(--color-surface, #fff);
+}
+
+.bucketlist-route h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.bucketlist-route ol {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1.35rem;
+  color: var(--color-text-secondary, #5f6561);
+  font-size: 0.9rem;
+}
+
+.bucketlist-route p {
+  margin: 0.4rem 0 0;
+  color: var(--color-text-secondary, #5f6561);
+  font-size: 0.9rem;
+}
+
+.bucketlist-route .bucketlist-route__total {
+  margin-top: 0.75rem;
+  color: var(--color-text, #171a18);
+  font-weight: 700;
+}
+
 .bucketlist-item {
   display: grid;
   grid-template-columns: 5.75rem 1fr auto;
@@ -685,9 +719,8 @@
   background: #f0f0ed;
 }
 
-/* Card Save Button */
-.destination-card__save-btn,
-.story-card__save-btn {
+/* Destination Bucket List Save Button */
+.destination-card__save-btn {
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
@@ -706,26 +739,22 @@
   transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
-.destination-card__save-btn:hover,
-.story-card__save-btn:hover {
+.destination-card__save-btn:hover {
   transform: scale(1.1);
   background: #ffffff;
   color: #d32f2f;
 }
 
-.destination-card__save-btn.is-saved,
-.story-card__save-btn.is-saved {
+.destination-card__save-btn.is-saved {
   color: #d32f2f;
   background: #ffffff;
 }
 
-.destination-card__save-btn.is-saved svg,
-.story-card__save-btn.is-saved svg {
+.destination-card__save-btn.is-saved svg {
   fill: #d32f2f;
 }
 
-.destination-card__save-btn svg,
-.story-card__save-btn svg {
+.destination-card__save-btn svg {
   width: 1.15rem;
   height: 1.15rem;
   stroke: currentColor;

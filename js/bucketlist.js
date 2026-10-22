@@ -148,7 +148,17 @@
     try {
       const data = localStorage.getItem(STORAGE_KEY);
       const items = data ? JSON.parse(data) : [];
-      return Array.isArray(items) ? items : [];
+      if (!Array.isArray(items)) return [];
+      // Remove legacy Inspiration bookmarks while retaining all destination saves.
+      const destinations = items.filter((item) => item?.type !== "story");
+      if (destinations.length !== items.length) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(destinations));
+        } catch (storageError) {
+          console.warn("Unable to remove legacy story bookmarks from localStorage", storageError);
+        }
+      }
+      return destinations;
     } catch (e) {
       console.warn("Unable to read saved destinations from localStorage", e);
       return [];
@@ -174,7 +184,13 @@
     try {
       const stored = localStorage.getItem(ORIGIN_STORAGE_KEY);
       if (stored) {
-        return JSON.parse(stored);
+        const point = JSON.parse(stored);
+        if (point && typeof point === "object") {
+          return {
+            ...point,
+            name: typeof point.name === "string" && point.name.trim() ? point.name : "Selected starting point",
+          };
+        }
       }
     } catch (e) {}
     // Default to New Delhi
@@ -232,7 +248,7 @@
       const state = item.state || lookup?.location?.state || "";
       const district = item.district || lookup?.location?.district || "";
 
-      items.unshift({
+      items.push({
         id: String(item.id),
         name: item.name || item.title || item.location || "Place in India",
         location: item.location || [district, state].filter(Boolean).join(", ") || state || "India",
@@ -269,19 +285,20 @@
       return;
     }
     saveItems([]);
-    document.querySelectorAll(".destination-card__save-btn, .story-card__save-btn").forEach((btn) => {
+    document.querySelectorAll(".destination-card__save-btn").forEach((btn) => {
       btn.classList.remove("is-saved");
       btn.setAttribute("aria-pressed", "false");
     });
   }
 
   function updateCardButtons(id, isSaved) {
-    const selector = `[data-save-id="${id}"]`;
-    document.querySelectorAll(selector).forEach((btn) => {
-      btn.classList.toggle("is-saved", isSaved);
-      btn.setAttribute("aria-pressed", String(isSaved));
-      btn.setAttribute("title", isSaved ? "Remove from saved" : "Save destination");
-    });
+    document.querySelectorAll(".destination-card__save-btn[data-save-id]")
+      .forEach((btn) => {
+        if (btn.dataset.saveId !== String(id)) return;
+        btn.classList.toggle("is-saved", isSaved);
+        btn.setAttribute("aria-pressed", String(isSaved));
+        btn.setAttribute("title", isSaved ? "Remove from saved" : "Save destination");
+      });
   }
 
   function updateAllBadges() {
@@ -298,7 +315,8 @@
 
   // --- Distance & Amount Calculation Engine ---
   function resolveItemCoords(item) {
-    if (item.lat != null && item.lng != null && Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng))) {
+    if (item.lat != null && item.lng != null && String(item.lat).trim() !== "" && String(item.lng).trim() !== ""
+      && Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng))) {
       const lat = Number(item.lat);
       const lng = Number(item.lng);
       if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return { lat, lng };
@@ -307,8 +325,13 @@
     // Check catalog lookup
     const lookup = destinationCatalog.get(String(item.id)) ||
                    destinationCatalog.get(String(item.name || "").toLowerCase().trim());
-    if (lookup?.location?.latitude != null && lookup?.location?.longitude != null) {
-      return { lat: Number(lookup.location.latitude), lng: Number(lookup.location.longitude) };
+    if (lookup?.location?.latitude != null && lookup?.location?.longitude != null
+      && String(lookup.location.latitude).trim() !== "" && String(lookup.location.longitude).trim() !== "") {
+      const lat = Number(lookup.location.latitude);
+      const lng = Number(lookup.location.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        return { lat, lng };
+      }
     }
 
     // Check starting cities list for city match
@@ -326,12 +349,14 @@
       }
     }
 
-    // Default central India coordinates (Nagpur) if all else fails
-    return { lat: 21.1458, lng: 79.0882 };
+    return null;
   }
 
   function calculateDistanceKm(lat1, lon1, lat2, lon2) {
     if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+    if (![lat1, lon1, lat2, lon2].every(Number.isFinite)
+      || lat1 < -90 || lat1 > 90 || lat2 < -90 || lat2 > 90
+      || lon1 < -180 || lon1 > 180 || lon2 < -180 || lon2 > 180) return null;
     const R = 6371; // Earth radius in km
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLon = ((lon2 - lon1) * Math.PI) / 180;
@@ -345,6 +370,26 @@
     const straightKm = R * c;
     // Road travel in India is approx 1.25x straight-line distance
     return Math.max(15, Math.round(straightKm * 1.25));
+  }
+
+  function calculateRoute(items, start = getStartingPoint()) {
+    if (!items.length) return { legs: [], totalDistanceKm: 0, hasInvalidLeg: false };
+    const points = [start, ...items, start];
+    const legs = points.slice(0, -1).map((from, index) => {
+      const to = points[index + 1];
+      const fromCoords = resolveItemCoords(from);
+      const toCoords = resolveItemCoords(to);
+      const distanceKm = fromCoords && toCoords
+        ? calculateDistanceKm(fromCoords.lat, fromCoords.lng, toCoords.lat, toCoords.lng)
+        : null;
+      return { from, to, distanceKm };
+    });
+    const hasInvalidLeg = legs.some((leg) => leg.distanceKm == null);
+    return {
+      legs,
+      totalDistanceKm: hasInvalidLeg ? null : legs.reduce((total, leg) => total + leg.distanceKm, 0),
+      hasInvalidLeg,
+    };
   }
 
   function resolveItemBudget(item) {
@@ -450,8 +495,9 @@
       return;
     }
 
-    const origin = getStartingPoint();
     const mode = getTravelMode();
+    const origin = getStartingPoint();
+    const route = calculateRoute(items, origin);
     const modeLabels = {
       smart: "⚡ Smart Plan (Best distance-based transit)",
       train: "🚆 Train / Bus",
@@ -459,29 +505,38 @@
       drive: "🚗 Road Trip (Cab / Self-drive)"
     };
 
-    let totalDistance = 0;
     let grandTotalMin = 0;
     let grandTotalMax = 0;
 
     let markdown = `# 🧭 My TourEase Travel Plan & Cost Breakdown\n`;
     markdown += `Generated on: ${new Date().toLocaleDateString("en-IN", { dateStyle: "long" })}\n`;
-    markdown += `📍 **Starting Point (Origin):** ${origin.name} (${origin.state || "India"})\n`;
+    markdown += `📍 **Route starts and ends at:** ${origin.name}\n`;
     markdown += `🚀 **Travel Mode Preference:** ${modeLabels[mode] || mode}\n`;
     markdown += `Total Saved Destinations: ${items.length}\n\n`;
     markdown += `---\n\n`;
 
+    markdown += `## Route Legs\n`;
+    route.legs.forEach((leg) => {
+      markdown += `- ${leg.from.name} → ${leg.to.name}: ${leg.distanceKm == null ? "Unavailable (coordinates missing/invalid)" : `${leg.distanceKm.toLocaleString("en-IN")} km`}\n`;
+    });
+    const routeFare = route.totalDistanceKm == null ? null : calculateTransitFare(route.totalDistanceKm, mode);
+    const stayTotals = items.reduce((totals, item) => {
+      const stay = resolveItemBudget(item);
+      totals.min += stay.min;
+      totals.max += stay.max;
+      return totals;
+    }, { min: 0, max: 0 });
+    grandTotalMin = stayTotals.min + (routeFare?.min || 0);
+    grandTotalMax = stayTotals.max + (routeFare?.max || 0);
+    markdown += `- **Total route distance:** ${route.totalDistanceKm == null ? "Unavailable (check route coordinates)" : `${route.totalDistanceKm.toLocaleString("en-IN")} km`}\n`;
+    markdown += `- **Estimated route fare (${routeFare?.label || "unavailable"}):** ${routeFare ? `₹${routeFare.min.toLocaleString("en-IN")} – ₹${routeFare.max.toLocaleString("en-IN")}` : "Unavailable (check destination coordinates)"}\n\n`;
+
     items.forEach((item, index) => {
-      const metrics = calculateItemMetrics(item, origin, mode);
-      if (metrics.distanceKm) totalDistance += metrics.distanceKm * 2;
-      grandTotalMin += metrics.totalMin;
-      grandTotalMax += metrics.totalMax;
+      const stay = resolveItemBudget(item);
 
       markdown += `## ${index + 1}. ${item.name}\n`;
       if (item.location) markdown += `- 📍 **Location:** ${item.location}\n`;
-      markdown += `- 📏 **Distance from ${origin.name}:** ${metrics.distanceKm ? `${metrics.distanceKm.toLocaleString("en-IN")} km` : "N/A"}\n`;
-      markdown += `- 🎫 **Estimated Transit Fare (${metrics.fare.label}):** ₹${metrics.fare.min.toLocaleString("en-IN")} – ₹${metrics.fare.max.toLocaleString("en-IN")}\n`;
-      markdown += `- 🏨 **Local Stay & Activities Budget:** ₹${metrics.stay.min.toLocaleString("en-IN")} – ₹${metrics.stay.max.toLocaleString("en-IN")}\n`;
-      markdown += `- 💰 **Total Estimated Destination Amount:** ₹${metrics.totalMin.toLocaleString("en-IN")} – ₹${metrics.totalMax.toLocaleString("en-IN")}\n`;
+      markdown += `- 🏨 **Local Stay & Activities Budget:** ₹${stay.min.toLocaleString("en-IN")} – ₹${stay.max.toLocaleString("en-IN")}\n`;
       if (item.category) markdown += `- 🏷️ **Category:** ${item.category}\n`;
       if (item.difficulty) markdown += `- ⚡ **Difficulty:** ${item.difficulty}\n`;
       if (item.url) markdown += `- 🔗 **Link:** ${window.location.origin}/${item.url}\n`;
@@ -490,9 +545,9 @@
 
     markdown += `---\n\n`;
     markdown += `### 📊 Trip Summary\n`;
-    markdown += `- **Starting Point:** ${origin.name}\n`;
-    markdown += `- **Total Combined Distance:** ${totalDistance.toLocaleString("en-IN")} km\n`;
-    markdown += `- **Grand Total Estimated Amount:** ₹${grandTotalMin.toLocaleString("en-IN")} – ₹${grandTotalMax.toLocaleString("en-IN")}\n\n`;
+    markdown += `- **Route starts and ends at:** ${origin.name}\n`;
+    markdown += `- **Total Route Distance:** ${route.totalDistanceKm == null ? "Unavailable (check route coordinates)" : `${route.totalDistanceKm.toLocaleString("en-IN")} km`}\n`;
+    markdown += `- **Grand Total Estimated Amount:** ${routeFare ? `₹${grandTotalMin.toLocaleString("en-IN")} – ₹${grandTotalMax.toLocaleString("en-IN")}` : "Unavailable (route coordinates needed for transit fare)"}\n\n`;
     markdown += `Plan your incredible journeys across India with TourEase (https://tourease.app)\n`;
 
     const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
@@ -551,8 +606,9 @@
     if (!body) return;
 
     const items = getSavedItems();
-    const origin = getStartingPoint();
     const mode = getTravelMode();
+    const origin = getStartingPoint();
+    const route = calculateRoute(items, origin);
 
     if (summaryOrigin) {
       summaryOrigin.textContent = origin.name;
@@ -565,7 +621,7 @@
             <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
           </svg>
           <h3>Your Save Dashboard is Empty</h3>
-          <p>Tap the bookmark icon on any destination to calculate estimated distance from <strong>${escapeHtml(origin.name)}</strong> and get instant travel amount estimates.</p>
+          <p>Save destinations to build an ordered route from your starting point and back.</p>
           <a class="bucketlist-btn bucketlist-btn--primary" href="destinations.html">Explore Destinations</a>
         </div>
       `;
@@ -578,19 +634,47 @@
       return;
     }
 
-    let totalDistanceKm = 0;
-    let totalTripMin = 0;
-    let totalTripMax = 0;
+    const routeFare = route.totalDistanceKm == null ? null : calculateTransitFare(route.totalDistanceKm, mode);
+    const stayTotals = items.reduce((totals, item) => {
+      const stay = resolveItemBudget(item);
+      totals.min += stay.min;
+      totals.max += stay.max;
+      return totals;
+    }, { min: 0, max: 0 });
+    const totalTripMin = routeFare ? stayTotals.min + routeFare.min : null;
+    const totalTripMax = routeFare ? stayTotals.max + routeFare.max : null;
 
     body.innerHTML = "";
 
+    const routeSection = document.createElement("section");
+    routeSection.className = "bucketlist-route";
+    routeSection.setAttribute("aria-label", "Planned route legs");
+    const routeTitle = document.createElement("h3");
+      routeTitle.textContent = `Route legs · starts and returns to ${origin.name}`;
+    routeSection.appendChild(routeTitle);
+    if (!items.length) {
+      const emptyRoute = document.createElement("p");
+      emptyRoute.textContent = "Save a destination to build your route.";
+      routeSection.appendChild(emptyRoute);
+    } else {
+      const routeList = document.createElement("ol");
+      route.legs.forEach((leg) => {
+        const row = document.createElement("li");
+        row.textContent = `${leg.from.name} → ${leg.to.name}: ${leg.distanceKm == null ? "Distance unavailable (missing or invalid coordinates)" : `${leg.distanceKm.toLocaleString("en-IN")} km`}`;
+        routeList.appendChild(row);
+      });
+      routeSection.appendChild(routeList);
+    }
+    const routeTotal = document.createElement("p");
+    routeTotal.className = "bucketlist-route__total";
+    routeTotal.textContent = route.totalDistanceKm == null
+      ? "Total route distance unavailable. Check starting location and destination coordinates."
+      : `Total route distance: ${route.totalDistanceKm.toLocaleString("en-IN")} km`;
+    routeSection.appendChild(routeTotal);
+    body.appendChild(routeSection);
+
     items.forEach((item) => {
-      const metrics = calculateItemMetrics(item, origin, mode);
-      if (metrics.distanceKm) {
-        totalDistanceKm += metrics.distanceKm * 2;
-      }
-      totalTripMin += metrics.totalMin;
-      totalTripMax += metrics.totalMax;
+      const stay = resolveItemBudget(item);
 
       const card = document.createElement("div");
       card.className = "bucketlist-item";
@@ -602,12 +686,7 @@
         ? "bucketlist-item__badge--hard"
         : "bucketlist-item__badge--moderate";
 
-      const formattedDist = metrics.distanceKm != null
-        ? `${metrics.distanceKm.toLocaleString("en-IN")} km`
-        : "Direct";
-
-      const formattedTotal = `₹${metrics.totalMin.toLocaleString("en-IN")} – ₹${metrics.totalMax.toLocaleString("en-IN")}`;
-      const fareSubtext = `Fare: ~₹${metrics.fare.min.toLocaleString("en-IN")} · Stay: ~₹${metrics.stay.min.toLocaleString("en-IN")}`;
+      const formattedTotal = `₹${stay.min.toLocaleString("en-IN")} – ₹${stay.max.toLocaleString("en-IN")}`;
       const safeImage = safeLocalOrHttpUrl(item.image, "assets/travel-placeholder.svg");
       const safeDetailUrl = safeLocalOrHttpUrl(item.url, "destinations.html");
 
@@ -619,17 +698,13 @@
           </div>
           <span class="bucketlist-item__meta">${escapeHtml(item.location || "India")}</span>
 
-          <!-- Distance and Amount Calculation Badges -->
+          <!-- Destination stay estimate -->
           <div class="bucketlist-metric-container">
-            <div class="bucketlist-metric-pill bucketlist-metric-pill--distance" title="Estimated distance from ${escapeHtml(origin.name)}">
-              <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-              <span><strong>${formattedDist}</strong> from ${escapeHtml(origin.name)}</span>
-            </div>
-            <div class="bucketlist-metric-pill bucketlist-metric-pill--amount" title="Estimated Trip Amount (Fare + Stay)">
+            <div class="bucketlist-metric-pill bucketlist-metric-pill--amount" title="Destination stay and activity estimate">
               <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M15 9h-4.5a2 2 0 0 0 0 4h3a2 2 0 0 1 0 4H9"/><path d="M12 7v10"/></svg>
               <div class="bucketlist-metric-amount-text">
                 <span class="bucketlist-amount-main"><strong>${formattedTotal}</strong></span>
-                <span class="bucketlist-amount-sub">(${fareSubtext})</span>
+                <span class="bucketlist-amount-sub">Stay &amp; activities</span>
               </div>
             </div>
           </div>
@@ -651,11 +726,11 @@
       body.appendChild(card);
     });
 
-    if (summaryDist) {
-      summaryDist.textContent = `${totalDistanceKm.toLocaleString("en-IN")} km`;
-    }
+    if (summaryDist) summaryDist.textContent = route.totalDistanceKm == null ? "Unavailable" : `${route.totalDistanceKm.toLocaleString("en-IN")} km`;
     if (summaryAmount) {
-      summaryAmount.textContent = `₹${totalTripMin.toLocaleString("en-IN")} – ₹${totalTripMax.toLocaleString("en-IN")}`;
+      summaryAmount.textContent = totalTripMin == null
+        ? "Unavailable"
+        : `₹${totalTripMin.toLocaleString("en-IN")} – ₹${totalTripMax.toLocaleString("en-IN")}`;
     }
     const estimateButton = document.getElementById("estimate-travel-budget-btn");
     const estimateResult = document.getElementById("bucketlist-budget-result");
@@ -663,7 +738,9 @@
     if (estimateResult) {
       estimateResult.hidden = !estimateShown || items.length === 0;
       if (items.length) {
-        estimateResult.textContent = `Estimated combined round-trip budget: ₹${totalTripMin.toLocaleString("en-IN")} – ₹${totalTripMax.toLocaleString("en-IN")}. Costs are approximate.`;
+        estimateResult.textContent = totalTripMin == null
+          ? "Travel fare estimate unavailable because one or more route legs lack valid coordinates. Destination stay estimates remain available."
+          : `Estimated combined route budget: ₹${totalTripMin.toLocaleString("en-IN")} – ₹${totalTripMax.toLocaleString("en-IN")}. Includes all route legs and destination stays; costs are approximate.`;
       }
     }
   }
@@ -764,7 +841,7 @@
       <div class="bucketlist-drawer__footer">
         <div class="bucketlist-summary-grid">
           <div class="bucketlist-summary-stat">
-            <span class="bucketlist-summary-stat__label">Starting From</span>
+            <span class="bucketlist-summary-stat__label">Starting Point</span>
             <span id="bucketlist-summary-origin" class="bucketlist-summary-stat__value">${escapeHtml(currentOrigin.name)}</span>
           </div>
           <div class="bucketlist-summary-stat">
@@ -1016,5 +1093,6 @@
     getTravelMode: getTravelMode,
     setTravelMode: setTravelMode,
     calculateItemMetrics: calculateItemMetrics,
+    calculateRoute: calculateRoute,
   };
 })();
