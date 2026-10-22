@@ -834,30 +834,6 @@ function setupQuickChips() {
   });
 }
 
-function setupCostCalculator() {
-  const daysSlider = document.getElementById("calc-days");
-  const peopleSlider = document.getElementById("calc-people");
-  const daysLabel = document.getElementById("calc-days-label");
-  const peopleLabel = document.getElementById("calc-people-label");
-  const costOutput = document.getElementById("calc-total-cost");
-
-  if (!daysSlider || !peopleSlider) return;
-
-  function recalculate() {
-    const days = Number(daysSlider.value);
-    const people = Number(peopleSlider.value);
-    daysLabel.textContent = `${days} ${days === 1 ? "Day" : "Days"}`;
-    peopleLabel.textContent = `${people} ${people === 1 ? "Person" : "People"}`;
-    const minCost = days * people * 2000;
-    const maxCost = days * people * 4500;
-    costOutput.textContent = `₹${minCost.toLocaleString("en-IN")} – ₹${maxCost.toLocaleString("en-IN")}`;
-  }
-
-  daysSlider.addEventListener("input", recalculate);
-  peopleSlider.addEventListener("input", recalculate);
-  recalculate();
-}
-
 function setupSortSelect() {
   const sortSelect = document.getElementById("destination-sort");
   if (!sortSelect) return;
@@ -922,6 +898,5 @@ compactFilters.addEventListener("change", setCompactFilterVisibility);
 setMoreFiltersExpanded(false);
 setCompactFilterVisibility();
 setupQuickChips();
-setupCostCalculator();
 setupSortSelect();
 loadDestinations();
