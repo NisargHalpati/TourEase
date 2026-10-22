@@ -3,7 +3,7 @@
  * Handles:
  * - "Save" Dashboard Drawer
  * - Starting Point (Origin) selection with 30+ Indian cities & GPS Geolocation
- * - Road/Travel Distance calculation (Haversine + Indian highway route factor)
+ * - Road/Travel Distance calculation (OpenStreetMap OSRM driving routes)
  * - Travel fare and Total Trip Amount estimation (Fare + Destination stay/activity budget)
  * - Travel Mode switching (Smart, Train/Bus, Flight, Road Trip)
  * - LocalStorage persistence and markdown export with budget & distance breakdown
@@ -37,6 +37,7 @@
 
   // Catalog of major Indian cities as starting hubs
   const STARTING_CITIES = [
+    { name: "Billimora", state: "Gujarat", lat: 20.76957, lng: 72.96134 },
     { name: "New Delhi", state: "Delhi", lat: 28.6139, lng: 77.2090 },
     { name: "Mumbai", state: "Maharashtra", lat: 19.0760, lng: 72.8777 },
     { name: "Bengaluru", state: "Karnataka", lat: 12.9716, lng: 77.5946 },
@@ -111,6 +112,22 @@
 
   // In-memory lookup for full destinations database
   const destinationCatalog = new Map();
+  const routeCache = new Map();
+  let renderSequence = 0;
+
+  function routeDebugEnabled() {
+    try {
+      return (typeof location !== "undefined" &&
+        (location.hostname === "localhost" || location.hostname === "127.0.0.1")) ||
+        localStorage.getItem("tourease_route_debug") === "true";
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function routeDebug(label, values) {
+    if (routeDebugEnabled()) console.debug(`[TourEase route diagnostic] ${label}`, values);
+  }
 
   // Load and index destinations.json asynchronously to enrich items
   async function loadDestinationCatalog() {
@@ -186,9 +203,28 @@
       if (stored) {
         const point = JSON.parse(stored);
         if (point && typeof point === "object") {
+          const savedName = typeof point.name === "string" ? point.name.trim() : "";
+          const normalizedName = savedName.toLowerCase();
+          const knownCity = STARTING_CITIES.find((city) => normalizedName.includes(city.name.toLowerCase()));
+          const storedCoords = { lat: Number(point.lat), lng: Number(point.lng) };
+          const isLegacyApproximation = point.isCustom === true && knownCity &&
+            Object.values(STATE_COORDINATES).some((coords) =>
+              storedCoords.lat === coords.lat && storedCoords.lng === coords.lng) ||
+            point.isCustom === true && knownCity && storedCoords.lat === 22.9734 && storedCoords.lng === 78.6569;
+          if (isLegacyApproximation &&
+              (storedCoords.lat !== knownCity.lat || storedCoords.lng !== knownCity.lng)) {
+            const correctedPoint = { ...point, name: knownCity.name, state: knownCity.state, lat: knownCity.lat, lng: knownCity.lng };
+            try {
+              localStorage.setItem(ORIGIN_STORAGE_KEY, JSON.stringify(correctedPoint));
+            } catch (storageError) {
+              console.warn("Unable to save corrected starting coordinates", storageError);
+            }
+            routeDebug("migrated legacy approximate starting coordinates", { savedName, previousCoords: storedCoords, resolvedOrigin: correctedPoint });
+            return correctedPoint;
+          }
           return {
             ...point,
-            name: typeof point.name === "string" && point.name.trim() ? point.name : "Selected starting point",
+            name: savedName || "Selected starting point",
           };
         }
       }
@@ -367,29 +403,65 @@
         Math.sin(dLon / 2) *
         Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const straightKm = R * c;
-    // Road travel in India is approx 1.25x straight-line distance
-    return Math.max(15, Math.round(straightKm * 1.25));
+    return R * c;
   }
 
-  function calculateRoute(items, start = getStartingPoint()) {
+  async function calculateDrivingLeg(from, to, fromCoords, toCoords) {
+    if (!fromCoords || !toCoords) return null;
+    // OSRM coordinates are longitude,latitude; its route distance unit is metres.
+    const key = `${fromCoords.lng},${fromCoords.lat};${toCoords.lng},${toCoords.lat}`;
+    if (!routeCache.has(key)) {
+      const url = `https://router.project-osrm.org/route/v1/driving/${key}?overview=false&alternatives=false&steps=false`;
+      routeDebug("request", { from: from.name, fromCoords, to: to.name, toCoords, url, coordinateOrder: "longitude,latitude", cache: "miss" });
+      const pending = fetch(url, { headers: { Accept: "application/json" } })
+        .then((response) => {
+          if (!response.ok) throw new Error(`Routing service returned ${response.status}`);
+          return response.json();
+        })
+        .then((data) => {
+          const metres = data?.code === "Ok" ? Number(data.routes?.[0]?.distance) : NaN;
+          routeDebug("raw routing response", { from: from.name, to: to.name, response: data, rawDistanceMetres: data?.routes?.[0]?.distance });
+          if (!Number.isFinite(metres) || metres <= 0) throw new Error(data?.code || "No driving route");
+          return metres / 1000;
+        });
+      routeCache.set(key, pending);
+      pending.catch(() => routeCache.delete(key));
+    } else {
+      routeDebug("request", { from: from.name, fromCoords, to: to.name, toCoords, cacheKey: key, cache: "hit" });
+    }
+    try {
+      const distanceKm = await routeCache.get(key);
+      routeDebug("converted leg", {
+        from: from.name, fromCoords, to: to.name, toCoords, distanceKm,
+      });
+      return distanceKm;
+    } catch (error) {
+      console.warn("TourEase driving route unavailable", { from: from.name, to: to.name, error });
+      return null;
+    }
+  }
+
+  async function calculateRoute(items, start = getStartingPoint()) {
     if (!items.length) return { legs: [], totalDistanceKm: 0, hasInvalidLeg: false };
+    routeDebug("route input", { start, items: items.map((item) => ({ id: item.id, name: item.name, coords: resolveItemCoords(item) })) });
     const points = [start, ...items, start];
-    const legs = points.slice(0, -1).map((from, index) => {
+    const legs = await Promise.all(points.slice(0, -1).map(async (from, index) => {
       const to = points[index + 1];
       const fromCoords = resolveItemCoords(from);
       const toCoords = resolveItemCoords(to);
-      const distanceKm = fromCoords && toCoords
-        ? calculateDistanceKm(fromCoords.lat, fromCoords.lng, toCoords.lat, toCoords.lng)
-        : null;
-      return { from, to, distanceKm };
-    });
+      const distanceKm = await calculateDrivingLeg(from, to, fromCoords, toCoords);
+      return { from, to, fromCoords, toCoords, distanceKm };
+    }));
     const hasInvalidLeg = legs.some((leg) => leg.distanceKm == null);
-    return {
+    const result = {
       legs,
       totalDistanceKm: hasInvalidLeg ? null : legs.reduce((total, leg) => total + leg.distanceKm, 0),
       hasInvalidLeg,
     };
+    const outboundDistanceKm = hasInvalidLeg ? null : legs.slice(0, -1).reduce((sum, leg) => sum + leg.distanceKm, 0);
+    const returnDistanceKm = legs.at(-1)?.distanceKm ?? null;
+    routeDebug("itinerary totals", { legs, outboundDistanceKm, returnSegment: legs.at(-1), returnDistanceKm, totalDistanceKm: result.totalDistanceKm, unit: "km" });
+    return result;
   }
 
   function resolveItemBudget(item) {
@@ -460,27 +532,17 @@
     }
   }
 
-  function calculateItemMetrics(item, origin, mode) {
-    const coords = resolveItemCoords(item);
-    const distanceKm = coords && origin
-      ? calculateDistanceKm(origin.lat, origin.lng, coords.lat, coords.lng)
-      : null;
-
-    const fare = calculateTransitFare(distanceKm || 0, mode);
+  async function calculateItemMetrics(item, origin, mode) {
+    const route = await calculateRoute([item], origin);
+    const distanceKm = route.totalDistanceKm;
+    const fare = distanceKm == null ? null : calculateTransitFare(distanceKm, mode);
     const stay = resolveItemBudget(item);
-
-    const roundTripFare = {
-      ...fare,
-      min: fare.min * 2,
-      max: fare.max * 2,
-      label: `${fare.label} round trip`,
-    };
-    const totalMin = roundTripFare.min + stay.min;
-    const totalMax = roundTripFare.max + stay.max;
+    const totalMin = fare ? fare.min + stay.min : null;
+    const totalMax = fare ? fare.max + stay.max : null;
 
     return {
       distanceKm,
-      fare: roundTripFare,
+      fare,
       stay,
       totalMin,
       totalMax
@@ -488,7 +550,7 @@
   }
 
   // --- Export Markdown Plan ---
-  function exportItinerary() {
+  async function exportItinerary() {
     const items = getSavedItems();
     if (!items.length) {
       alert("Your Save list is empty. Save some destinations first!");
@@ -497,7 +559,7 @@
 
     const mode = getTravelMode();
     const origin = getStartingPoint();
-    const route = calculateRoute(items, origin);
+    const route = await calculateRoute(items, origin);
     const modeLabels = {
       smart: "⚡ Smart Plan (Best distance-based transit)",
       train: "🚆 Train / Bus",
@@ -598,7 +660,7 @@
   }
 
   // --- Render Drawer Items ---
-  function renderDrawerItems() {
+  async function renderDrawerItems() {
     const body = document.getElementById("bucketlist-drawer-body");
     const summaryDist = document.getElementById("bucketlist-summary-distance");
     const summaryAmount = document.getElementById("bucketlist-summary-amount");
@@ -608,7 +670,13 @@
     const items = getSavedItems();
     const mode = getTravelMode();
     const origin = getStartingPoint();
-    const route = calculateRoute(items, origin);
+    const currentRender = ++renderSequence;
+    routeDebug("render started", { renderId: currentRender, origin, items: items.map((item) => ({ id: item.id, name: item.name })) });
+    const route = await calculateRoute(items, origin);
+    if (currentRender !== renderSequence) {
+      routeDebug("stale render discarded", { renderId: currentRender, latestRenderId: renderSequence, distanceKm: route.totalDistanceKm });
+      return;
+    }
 
     if (summaryOrigin) {
       summaryOrigin.textContent = origin.name;
@@ -635,6 +703,7 @@
     }
 
     const routeFare = route.totalDistanceKm == null ? null : calculateTransitFare(route.totalDistanceKm, mode);
+    routeDebug("travel budget input", { routeDistanceKm: route.totalDistanceKm, routeFare, mode, savedItemCount: items.length });
     const stayTotals = items.reduce((totals, item) => {
       const stay = resolveItemBudget(item);
       totals.min += stay.min;
@@ -660,7 +729,7 @@
       const routeList = document.createElement("ol");
       route.legs.forEach((leg) => {
         const row = document.createElement("li");
-        row.textContent = `${leg.from.name} → ${leg.to.name}: ${leg.distanceKm == null ? "Distance unavailable (missing or invalid coordinates)" : `${leg.distanceKm.toLocaleString("en-IN")} km`}`;
+        row.textContent = `${leg.from.name} → ${leg.to.name}: ${leg.distanceKm == null ? "Driving route unavailable (check coordinates or retry)" : `${leg.distanceKm.toLocaleString("en-IN")} km`}`;
         routeList.appendChild(row);
       });
       routeSection.appendChild(routeList);
@@ -668,7 +737,7 @@
     const routeTotal = document.createElement("p");
     routeTotal.className = "bucketlist-route__total";
     routeTotal.textContent = route.totalDistanceKm == null
-      ? "Total route distance unavailable. Check starting location and destination coordinates."
+      ? "Road distance unavailable. Check coordinates or retry; no estimate is shown when a driving route is missing."
       : `Total route distance: ${route.totalDistanceKm.toLocaleString("en-IN")} km`;
     routeSection.appendChild(routeTotal);
     body.appendChild(routeSection);
@@ -727,6 +796,7 @@
     });
 
     if (summaryDist) summaryDist.textContent = route.totalDistanceKm == null ? "Unavailable" : `${route.totalDistanceKm.toLocaleString("en-IN")} km`;
+    routeDebug("displayed total", { renderId: currentRender, text: summaryDist?.textContent, distanceKm: route.totalDistanceKm });
     if (summaryAmount) {
       summaryAmount.textContent = totalTripMin == null
         ? "Unavailable"
@@ -928,32 +998,18 @@
       const cityName = (customInput.value || "").trim();
       if (!cityName) return;
 
-      // Check if coordinates exist in city or state catalog
-      const cityMatch = STARTING_CITIES.find((c) => c.name.toLowerCase().includes(cityName.toLowerCase()));
-      let lat = cityMatch ? cityMatch.lat : null;
-      let lng = cityMatch ? cityMatch.lng : null;
-
-      if (!lat) {
-        for (const [st, coords] of Object.entries(STATE_COORDINATES)) {
-          if (cityName.toLowerCase().includes(st)) {
-            lat = coords.lat;
-            lng = coords.lng;
-            break;
-          }
-        }
-      }
-      // If still unknown, approximate with Central India coordinates
-      if (!lat) {
-        lat = 22.9734;
-        lng = 78.6569;
+      const cityMatch = STARTING_CITIES.find((c) => c.name.toLowerCase() === cityName.toLowerCase());
+      if (!cityMatch) {
+        alert("We do not have verified coordinates for that starting city yet. Choose a listed city, including Billimora, Gujarat.");
+        return;
       }
 
       setStartingPoint({
-        name: cityName,
-        state: "Custom",
-        lat: lat,
-        lng: lng,
-        isCustom: true,
+        name: cityMatch.name,
+        state: cityMatch.state,
+        lat: cityMatch.lat,
+        lng: cityMatch.lng,
+        isCustom: false,
       });
     });
 
